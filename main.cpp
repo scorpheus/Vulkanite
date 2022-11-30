@@ -14,15 +14,15 @@
 #include <set>
 #include <stdexcept>
 #include <vector>
+#include <chrono>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <chrono>
+#include <spdlog/spdlog.h>
 
 #include "camera.h"
-#include "loaderObj.h"
-#include "loaderGltf.h"
+#include "loader.h"
 
 const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -84,10 +84,7 @@ private:
 	VkFormat swapChainImageFormat;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
-	VkRenderPass renderPass;
 	std::vector<VkCommandBuffer> commandBuffers;
-
-	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkImage colorImage;
 	VkDeviceMemory colorImageMemory;
@@ -136,7 +133,8 @@ private:
 		createDepthResources();
 		createFramebuffers();
 		
-		loadSceneObj(renderPass, msaaSamples);
+		//loadSceneObj();
+		loadSceneGLTF();
 
 		createCommandBuffer();
 		createSyncObjects();
@@ -552,8 +550,7 @@ private:
 
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
 		for (const auto &availableFormat : availableFormats) {
-			if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace ==
-			    VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+			if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
 				return availableFormat;
 			}
 		}
@@ -831,7 +828,8 @@ private:
 		scissor.extent = swapChainExtent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		drawModel(commandBuffer, currentFrame);
+		//drawModelObj(commandBuffer, currentFrame);
+		drawSceneGLTF(commandBuffer, currentFrame);
 
 		vkCmdEndRenderPass(commandBuffer);
 
@@ -916,6 +914,9 @@ private:
 };
 
 int main() {
+	spdlog::set_level(spdlog::level::debug);
+	spdlog::info("Welcome to Vulkanite!");
+
 	VulkaniteApplication app;
 
 	try {

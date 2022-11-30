@@ -50,7 +50,7 @@ endif(MSVC)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # GLFW
-conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10
+conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0
 					GENERATORS cmake_find_package_multi)
 					
 foreach(TYPE Debug RelWithDebInfo Release)
@@ -64,11 +64,18 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
 find_package(tinyobjloader REQUIRED)
-link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader)
+find_package(spdlog REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(tinygltf REQUIRED)
+
+link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF)
 
 
 # create Vulkanite project
 set(SOURCE_FILES main.cpp
+				vertex_config.h
+				loader.cpp
+				loader.h
 				loaderGltf.cpp
 				loaderGltf.h
 				loaderObj.cpp
@@ -78,9 +85,7 @@ set(SOURCE_FILES main.cpp
 				camera.cpp
 				camera.h
 				core_utils.cpp
-				core_utils.h
-				shaders/shader.frag
-				shaders/shader.vert)
+				core_utils.h)
 add_executable(Vulkanite ${SOURCE_FILES})
 
 find_package(Vulkan)
@@ -97,12 +102,27 @@ if(WIN32)
 	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
 endif()
 
+# shaders
+include(cmake/utilities.cmake)
+#--------------------------------------------------------------------------------------------------
+# GLSL to SPIR-V custom build
+compile_glsl_directory(
+	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
+	VULKAN_TARGET "vulkan1.0"
+	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
+	)
+target_sources(Vulkanite PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
+source_group("Shader Sources"  FILES ${GLSL_SOURCES})
+source_group("Shader Headers"  FILES ${GLSL_HEADERS})
+
+
 # modify where cmake install directory
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix" FORCE)
 
 # install binary, runtime dependencies and data dependencies
 install(TARGETS Vulkanite ARCHIVE DESTINATION Vulkanite RUNTIME DESTINATION Vulkanite LIBRARY DESTINATION Vulkanite COMPONENT Vulkanite)
 
-install(FILES shaders/frag.spv shaders/vert.spv DESTINATION Vulkanite/shaders COMPONENT Vulkanite)
-install(FILES textures/viking_room.png textures/Barrel_PropMaterial_baseColor.png DESTINATION Vulkanite/textures COMPONENT Vulkanite)
-install(FILES models/viking_room.obj models/barrel.obj DESTINATION Vulkanite/models COMPONENT Vulkanite)
+install(FILES ${SPV_OUTPUT} DESTINATION vulkanite/spv COMPONENT Vulkanite)
+install(DIRECTORY textures/ DESTINATION Vulkanite/textures COMPONENT Vulkanite)
+install(DIRECTORY models/ DESTINATION Vulkanite/models COMPONENT Vulkanite)

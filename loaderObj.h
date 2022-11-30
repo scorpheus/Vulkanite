@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vulkan/vulkan_core.h>
+#include <string>
+#include <vector>
 
-void loadSceneObj(const VkRenderPass &renderPass, const VkSampleCountFlagBits &msaaSamples);
-void drawModel(VkCommandBuffer commandBuffer, uint32_t currentFrame);
-void deleteModel();
+struct Vertex;
+void loadObjectObj(const std::string &scenePath, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices);

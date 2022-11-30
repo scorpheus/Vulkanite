@@ -97,14 +97,28 @@ void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int3
 	endSingleTimeCommands(commandBuffer);
 }
 
-void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
+void createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
 	int texWidth, texHeight, texChannels;
-	stbi_uc *pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	const VkDeviceSize imageSize = texWidth * texHeight * 4;
+	stbi_uc *pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
+	createTextureImage(pixels, texWidth, texHeight, texChannels, textureImage, textureImageMemory, mipLevels);
+}
+
+void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
+	int texWidth, texHeight, texChannels;
+	stbi_uc *pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+	if (!pixels) {
+		throw std::runtime_error("failed to load texture image!");
+	}
+	createTextureImage(pixels, texWidth, texHeight, texChannels, textureImage, textureImageMemory, mipLevels);
+}
+
+void createTextureImage(unsigned char * pixels, const int &texWidth, const int &texHeight, const int &texChannels, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
+	const VkDeviceSize imageSize = texWidth * texHeight * 4;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -160,7 +174,7 @@ void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
-	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareEnable = VK_TRUE;
 	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;

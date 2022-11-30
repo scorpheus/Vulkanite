@@ -11,6 +11,9 @@ VkQueue presentQueue;
 VkCommandPool commandPool;
 VkExtent2D swapChainExtent;
 
+VkRenderPass renderPass;
+VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
 uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
