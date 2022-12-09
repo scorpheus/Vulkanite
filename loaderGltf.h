@@ -32,7 +32,7 @@ struct textureGLTF {
 
 struct PushConstBlockMaterial {
 	glm::vec4 baseColorFactor;
-	glm::vec4 emissiveFactor;
+	glm::vec3 emissiveFactor;
 	int colorTextureSet;
 	int metallicRoughnessTextureSet;
 	int normalTextureSet;

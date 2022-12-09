@@ -42,9 +42,6 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 	return true;
 }
 
-//std::map<int, hg::NodeRef> idNode_to_NodeRef;
-//std::vector<std::string> already_saved_picture;
-
 std::map<std::string, std::string> primitiveIdsToGeoPath;
 std::map<std::string, int> geoPathOcurrence;
 
@@ -447,7 +444,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	std::string dst_path;
 	matGLTF mat{
 		textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
-		{{}, {}, -1, -1, -1, -1, -1, 0, 0, 0, 0}
+		{{}, {}, 0, 0, 0, 0, 0, 1, 1, 0, 0}
 	};
 
 	// BaseColor Texture
@@ -488,7 +485,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	mat.pushConstBlockMaterial.roughnessFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.roughnessFactor);
 	mat.pushConstBlockMaterial.metallicFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.metallicFactor);
 	mat.pushConstBlockMaterial.emissiveFactor = {
-		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2]), -1.f
+		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2])
 	};
 
 	//if (gltf_mat.alphaMode == "BLEND" || gltf_mat.alphaMode == "MASK")
@@ -801,23 +798,28 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 					glm::vec2 uv;
 					for (uint32_t i{0}; i < count; ++i) {
 						w_texcoord0(&uv.x, i);
-						prim.vertices[i].texCoord = uv;
+						prim.vertices[i].texCoord0 = uv;
 					}
 					/*		for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
 								w_texcoord0(&uv.x, geo.binding[i] - start_id_vtx);
 								geo.uv[0].push_back(uv);
 							}*/
 				}
-				//// Face varying comment on the normals is also true for the UVs
-				//if (attribute.first == "TEXCOORD_1") {
-				//	spdlog::debug("Found texture coordinates 1");
+				// Face varying comment on the normals is also true for the UVs
+				if (attribute.first == "TEXCOORD_1") {
+					spdlog::debug("Found texture coordinates 1");
 
-				//	glm::vec2 uv;
-				//	for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
-				//		w_texcoord1(&uv.x, geo.binding[i] - start_id_vtx);
-				//		geo.uv[1].push_back(uv);
-				//	}
-				//}
+					glm::vec2 uv;
+					for (uint32_t i{0}; i < count; ++i) {
+						w_texcoord1(&uv.x, i);
+						prim.vertices[i].texCoord1 = uv;
+					}
+					/*glm::vec2 uv;
+					for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
+						w_texcoord1(&uv.x, geo.binding[i] - start_id_vtx);
+						geo.uv[1].push_back(uv);
+					}*/
+				}
 
 				//// JOINTS_0
 				//if (attribute.first == "JOINTS_0") {
@@ -952,7 +954,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			createIndexBuffer(prim.indices, prim.indexBuffer, prim.indexBufferMemory);
 
 			createUniformBuffers(prim.uniformBuffers, prim.uniformBuffersMemory, prim.uniformBuffersMapped);
-			
+
 			createDescriptorPool(prim.descriptorPool);
 			createDescriptorSets(prim.descriptorSets, prim.uniformBuffers, prim.mat, prim.descriptorSetLayout, prim.descriptorPool);
 
@@ -1216,7 +1218,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// create white texture
 	{
 		std::string imageName("WhiteTex");
-		textureCache[imageName] = textureGLTF{};
+		textureCache[imageName] = textureGLTF{}; 
 		auto &tex = textureCache[imageName];
 
 		tex.name = imageName;

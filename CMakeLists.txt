@@ -108,7 +108,7 @@ include(cmake/utilities.cmake)
 # GLSL to SPIR-V custom build
 compile_glsl_directory(
 	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
-	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/Vulkanite/spv" 
 	VULKAN_TARGET "vulkan1.0"
 	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
 	)

@@ -31,7 +31,7 @@ void loadObjectObj(const std::string &scenePath, std::vector<Vertex> &vertices, 
 				attrib.vertices[3 * index.vertex_index + 1],
 				attrib.vertices[3 * index.vertex_index + 2]
 			};
-			vertex.texCoord = {
+			vertex.texCoord0 = {
 				attrib.texcoords[2 * index.texcoord_index + 0],
 				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
 			};

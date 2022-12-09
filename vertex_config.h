@@ -14,7 +14,8 @@ struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 norm;
 	glm::vec3 color;
-	glm::vec2 texCoord;
+	glm::vec2 texCoord0;
+	glm::vec2 texCoord1;
 
 	static VkVertexInputBindingDescription getBindingDescription() {
 		VkVertexInputBindingDescription bindingDescription{};
@@ -25,8 +26,8 @@ struct Vertex {
 		return bindingDescription;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+	static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions() {
+		std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
 		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -45,13 +46,17 @@ struct Vertex {
 		attributeDescriptions[3].binding = 0;
 		attributeDescriptions[3].location = 3;
 		attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(Vertex, texCoord);
+		attributeDescriptions[3].offset = offsetof(Vertex, texCoord0);
+
+		attributeDescriptions[4].binding = 0;
+		attributeDescriptions[4].location = 4;
+		attributeDescriptions[4].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[4].offset = offsetof(Vertex, texCoord1);
 
 		return attributeDescriptions;
 	}
 
-	bool operator==(const Vertex &other) const {
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+	bool operator==(const Vertex &other) const { return pos == other.pos && norm == other.norm && color == other.color && texCoord0 == other.texCoord0 && texCoord1 == other.texCoord1;
 	}
 };
 
@@ -59,7 +64,7 @@ namespace std {
 template <>
 struct hash<Vertex> {
 	size_t operator()(Vertex const &vertex) const {
-		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord0) << 1);
 	}
 };
 } // namespace std

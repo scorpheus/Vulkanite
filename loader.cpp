@@ -34,8 +34,26 @@ const std::string MODEL_GLTF_PATH = "models/scene.gltf";
 struct UniformBufferObject {
 	glm::mat4 model;
 	glm::mat4 view;
+	glm::mat4 invView;
 	glm::mat4 proj;
 };
+
+struct UBOParams {
+	glm::vec4 lightDir;
+	float envRot;
+	float exposure;
+	glm::mat4 SHRed;
+	glm::mat4 SHGreen;
+	glm::mat4 SHBlue;
+} uboParams;
+
+VkBuffer uboParamsBuffer;
+
+std::vector<VkBuffer> uniformParamsBuffers;
+std::vector<VkDeviceMemory> uniformParamsBuffersMemory;
+std::vector<void*> uniformParamsBuffersMapped;
+
+textureGLTF envMap;
 
 static std::vector<char> readFile(const std::string &filename) {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -119,19 +137,36 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+	VkDescriptorSetLayoutBinding uboParamsLayoutBinding{};
+	uboParamsLayoutBinding.binding = 1;
+	uboParamsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboParamsLayoutBinding.descriptorCount = 1;
+	uboParamsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	uboParamsLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+	VkDescriptorSetLayoutBinding samplerEnvMapLayoutBinding;
+	samplerEnvMapLayoutBinding.binding = 2;
+	samplerEnvMapLayoutBinding.descriptorCount = 1;
+	samplerEnvMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerEnvMapLayoutBinding.pImmutableSamplers = nullptr;
+	samplerEnvMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	std::array<VkDescriptorSetLayoutBinding, 5> samplerLayoutBinding;
 	for (int i = 0; i < 5; ++i) {
-		samplerLayoutBinding[i].binding = i+1;
+		samplerLayoutBinding[i].binding = i + 3;
 		samplerLayoutBinding[i].descriptorCount = 1;
 		samplerLayoutBinding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		samplerLayoutBinding[i].pImmutableSamplers = nullptr;
 		samplerLayoutBinding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	}
 
-	std::array<VkDescriptorSetLayoutBinding, 6> bindings = {uboLayoutBinding, samplerLayoutBinding[0], samplerLayoutBinding[1], samplerLayoutBinding[2], samplerLayoutBinding[3], samplerLayoutBinding[4]};
+	std::array<VkDescriptorSetLayoutBinding, 8> bindings = {
+		uboLayoutBinding, uboParamsLayoutBinding, samplerEnvMapLayoutBinding, samplerLayoutBinding[0], samplerLayoutBinding[1], samplerLayoutBinding[2], samplerLayoutBinding[3],
+		samplerLayoutBinding[4]
+	};
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -143,10 +178,14 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 }
 
 void createDescriptorPool(VkDescriptorPool &descriptorPool) {
-	std::array<VkDescriptorPoolSize, 6> poolSizes{};
+	std::array<VkDescriptorPoolSize, 8> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 1; i < 6; ++i) {
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	for (int i = 3; i < 3 + 5; ++i) {
 		poolSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[i].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	}
@@ -185,6 +224,16 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
+		VkDescriptorBufferInfo bufferInfoParam{};
+		bufferInfoParam.buffer = uniformParamsBuffers[i];
+		bufferInfoParam.offset = 0;
+		bufferInfoParam.range = sizeof(UBOParams);
+
+		VkDescriptorImageInfo imageEnvMapInfo;
+		imageEnvMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageEnvMapInfo.imageView = envMap.textureImageView;
+		imageEnvMapInfo.sampler = envMap.textureSampler;
+
 		std::array<VkDescriptorImageInfo, 5> imageInfo;
 		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		imageInfo[0].imageView = mat.albedoTex.textureImageView;
@@ -193,16 +242,16 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		imageInfo[1].imageView = mat.metallicRoughnessTex.textureImageView;
 		imageInfo[1].sampler = mat.metallicRoughnessTex.textureSampler;
 		imageInfo[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[2].imageView = mat.aoTex.textureImageView;
-		imageInfo[2].sampler = mat.aoTex.textureSampler;
+		imageInfo[2].imageView = mat.normalTex.textureImageView;
+		imageInfo[2].sampler = mat.normalTex.textureSampler;
 		imageInfo[3].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[3].imageView = mat.normalTex.textureImageView;
-		imageInfo[3].sampler = mat.normalTex.textureSampler;
+		imageInfo[3].imageView = mat.aoTex.textureImageView;
+		imageInfo[3].sampler = mat.aoTex.textureSampler;
 		imageInfo[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		imageInfo[4].imageView = mat.emissiveTex.textureImageView;
 		imageInfo[4].sampler = mat.emissiveTex.textureSampler;
 
-		std::array<VkWriteDescriptorSet, 1 + imageInfo.size()> descriptorWrites{};
+		std::array<VkWriteDescriptorSet, 3 + imageInfo.size()> descriptorWrites{};
 
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSets[i];
@@ -212,14 +261,30 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		descriptorWrites[0].descriptorCount = 1;
 		descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-		for (int j = 1; j <= imageInfo.size(); ++j) {
+		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[1].dstSet = descriptorSets[i];
+		descriptorWrites[1].dstBinding = 1;
+		descriptorWrites[1].dstArrayElement = 0;
+		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[1].descriptorCount = 1;
+		descriptorWrites[1].pBufferInfo = &bufferInfoParam;
+
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[2].dstSet = descriptorSets[i];
+		descriptorWrites[2].dstBinding = 2;
+		descriptorWrites[2].dstArrayElement = 0;
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[2].descriptorCount = 1;
+		descriptorWrites[2].pImageInfo = &imageEnvMapInfo;
+
+		for (int j = 3; j < 3 + imageInfo.size(); ++j) {
 			descriptorWrites[j].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrites[j].dstSet = descriptorSets[i];
 			descriptorWrites[j].dstBinding = j;
 			descriptorWrites[j].dstArrayElement = 0;
 			descriptorWrites[j].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[j].descriptorCount = 1;
-			descriptorWrites[j].pImageInfo = &imageInfo[j - 1];
+			descriptorWrites[j].pImageInfo = &imageInfo[j - 3];
 		}
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
@@ -395,22 +460,48 @@ void createUniformBuffers(
 	}
 }
 
-std::array<objectGLTF, 2> scene;
-
 void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj) {
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() * 0.5f;
-
 	UniformBufferObject ubo{};
 	ubo.model = obj.world;
 	ubo.view = camWorld;
+	ubo.invView = glm::inverse(camWorld);
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 	ubo.proj[1][1] *= -1;
 
 	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
+
+void createUniformParamsBuffers() {
+	VkDeviceSize bufferSize = sizeof(UBOParams);
+
+	uniformParamsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformParamsBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformParamsBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformParamsBuffers[i],
+		             uniformParamsBuffersMemory[i]);
+
+		vkMapMemory(device, uniformParamsBuffersMemory[i], 0, bufferSize, 0, &uniformParamsBuffersMapped[i]);
+	}
+}
+
+void updateUniformParamsBuffer(uint32_t currentFrame) {
+	UBOParams uboParams{};
+	uboParams.lightDir = {0, 0, 0, 0};
+	uboParams.envRot = 0.f;
+	uboParams.exposure = 1.f;
+	uboParams.SHRed = {-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765, 0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606, 1.7490483522415161
+	};
+	uboParams.SHGreen = {-0.026353614404797554, 0.0420733205974102, -0.11874748021364212, -0.004994439892470837, 0.0420733205974102, 0.026353614404797554, 0.03807618096470833, 0.014554289169609547, -0.11874748021364212, 0.03807618096470833, 0.15525034070014954, 0.5655900835990906, -0.004994439892470837, 0.014554289169609547, 0.5655900835990906, 1.8003654479980469
+	};
+	uboParams.SHBlue = {-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765, 0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606, 1.7490483522415161
+	};
+
+	memcpy(uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof(uboParams));
+}
+
+std::array<objectGLTF, 2> scene;
 
 void loadSceneObj() {
 	int i = 0;
@@ -457,7 +548,20 @@ void drawModelObj(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 }
 
 std::vector<objectGLTF> sceneGLTF;
-void loadSceneGLTF() { sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH); }
+
+void loadSceneGLTF() {
+	envMap.name = "envMap";
+	createTextureImage("textures/autoshop_01_4k.hdr", envMap.textureImage, envMap.textureImageMemory, envMap.mipLevels);
+	envMap.textureImageView = createTextureImageView(envMap.textureImage, envMap.mipLevels);
+	createTextureSampler(envMap.textureSampler, envMap.mipLevels);
+
+	createUniformParamsBuffers();
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		updateUniformParamsBuffer(i);
+	//sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
+	sceneGLTF = loadSceneGltf("models/NormalTangentTest.glb");
+	
+}
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj) {
 	if (obj.vertexBuffer) {
@@ -482,7 +586,7 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 		drawModelGLTF(commandBuffer, currentFrame, objChild);
 }
 
-void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
+void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {	
 	for (auto &obj : sceneGLTF)
 		drawModelGLTF(commandBuffer, currentFrame, obj);
 }
