@@ -5,6 +5,7 @@ layout(location = 1) in vec2 fragTexCoord0;
 layout(location = 2) in vec2 fragTexCoord1;
 layout(location = 3) in vec3 fragNorm;
 layout(location = 4) in vec3 fragWorldPos;
+layout(location = 5) in vec4 fragTangent;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -33,17 +34,17 @@ layout(binding = 6) uniform sampler2D aoMap;
 layout(binding = 7) uniform sampler2D emissiveMap;
 
 layout (push_constant) uniform Material {
-	vec4 baseColorFactor;
-	vec3 emissiveFactor;
+	float metallicFactor;	
+	float roughnessFactor;	
+	float alphaMask;	
+	float alphaMaskCutoff;
 	int baseColorTextureSet;
 	int metallicRoughnessTextureSet;
 	int normalTextureSet;	
 	int occlusionTextureSet;
 	int emissiveTextureSet;
-	float metallicFactor;	
-	float roughnessFactor;	
-	float alphaMask;	
-	float alphaMaskCutoff;
+	vec4 baseColorFactor;
+	vec3 emissiveFactor;
 } material;
 
 layout(location = 0) out vec4 outColor;
@@ -58,10 +59,10 @@ layout(location = 0) out vec4 outColor;
 
 #define maxLod 9.0
 
-#define M_PI 3.14159265359
+const float M_PI = 3.141592653589793;
 #define M_HALF_PI (M_PI * 0.5)
-#define M_2PI (2.0 * M_PI)
-#define M_INV_PI 0.31830988
+const float M_2PI = 2.0 * M_PI;
+const float M_INV_PI = 0.31830988;
 #define M_INV_LOG2 1.442695
 #define M_GOLDEN_RATIO 1.618034
 
@@ -490,45 +491,36 @@ void main() {
 
     //outColor = texture(colorMap, fragTexCoord) *  texture(metallicRoughnessMap, fragTexCoord) *  texture(normalMap, fragTexCoord) *  texture(aoMap, fragTexCoord) *  texture(emissiveMap, fragTexCoord) * material.baseColorFactor;
 
-	vec4 albedo_color = texture(colorMap, material.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 ) * material.baseColorFactor;
-	//albedo_color.xyz = sRGB2linear(albedo_color.xyz) * material.baseColorFactor.xyz;
+	vec4 albedo_color = texture(colorMap, material.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
+	albedo_color.xyz = /*sRGB2linear(*/albedo_color.xyz/*)*/ * material.baseColorFactor.xyz;
 	 
 	float occlusion = texture(aoMap, material.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
 	float metalness = texture(metallicRoughnessMap, material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * material.metallicFactor;
 	float roughness = texture(metallicRoughnessMap, material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * material.roughnessFactor;
+
+	
+//	outColor = vec4(metalness, metalness, metalness, 1);
+//outColor = albedo_color;
+//	return;
 
 	vec3 emissive = texture(emissiveMap, material.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * material.emissiveFactor;
 
 	//
 	vec3 view = (ubo.view * vec4(fragWorldPos, 1.0)).xyz;
 	vec3 P = fragWorldPos; // fragment world pos
-	vec3 V = normalize(GetT(ubo.invView) - P); // view vector
-	
-	
+	vec3 V = normalize(GetT(ubo.invView) - P); // view vector	
 
 	// Normal
-	// Perturb normal, see http://www.thetenthplanet.de/archives/1180
 	vec3 tangentNormal = texture(normalMap, material.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * 2.0 - 1.0;
-
-	vec3 q1 = dFdx(fragWorldPos);
-	vec3 q2 = dFdy(fragWorldPos);
-	vec2 st1 = dFdx(fragTexCoord0);
-	vec2 st2 = dFdy(fragTexCoord0);
-
+			
 	vec3 N = normalize(fragNorm);
-	vec3 T = normalize(q1 * st2.t - q2 * st1.t);
-	vec3 B = -normalize(cross(N, T));
-	mat3 TBN = mat3(T, B, N);
+	vec3 T = normalize(fragTangent.xyz);
+	vec3 B = fragTangent.w * cross(fragNorm, fragTangent.xyz);
 
-	N = normalize(TBN * tangentNormal);
+	mat3 TBN = mat3(T, B, N);
 	
-//	N.xy = texture(normalMap, material.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xy * 2.0 - 1.0;
-//	N.y = -N.y;
-//	N.z = sqrt(1.0 - dot(N.xy, N.xy));
-//	N = normalize(N * TBN);
-//
-	//outColor = vec4(fragNorm, 1);
-	//return;
+	N = normalize( TBN *tangentNormal);
+
 	float specular_level_value = 1.0 - specular_level;
 	vec3 specular_color = mix(vec3(0.08 * specular_level_value), albedo_color.xyz, vec3(metalness));
 
@@ -562,7 +554,7 @@ void main() {
 	float opacity = albedo_color.w;
 
 	outColor = vec4(color, opacity);
-	//outColor = vec4(roughness, roughness, roughness, opacity);
+	//outColor = vec4(diffuse_color + specular_pbr, opacity);
 
 	
 }

@@ -31,17 +31,17 @@ struct textureGLTF {
 };
 
 struct PushConstBlockMaterial {
-	glm::vec4 baseColorFactor;
-	glm::vec3 emissiveFactor;
+	float metallicFactor;
+	float roughnessFactor;
+	float alphaMask;
+	float alphaMaskCutoff;
 	int colorTextureSet;
 	int metallicRoughnessTextureSet;
 	int normalTextureSet;
 	int occlusionTextureSet;
 	int emissiveTextureSet;
-	float metallicFactor;
-	float roughnessFactor;
-	float alphaMask;
-	float alphaMaskCutoff;
+	glm::vec4 baseColorFactor;
+	glm::vec3 emissiveFactor;
 };
 
 struct matGLTF {

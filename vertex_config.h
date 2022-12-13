@@ -13,6 +13,7 @@
 struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 norm;
+	glm::vec4 tangent;
 	glm::vec3 color;
 	glm::vec2 texCoord0;
 	glm::vec2 texCoord1;
@@ -26,8 +27,8 @@ struct Vertex {
 		return bindingDescription;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
+	static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions() {
+		std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
 		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -40,23 +41,28 @@ struct Vertex {
 
 		attributeDescriptions[2].binding = 0;
 		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, color);
+		attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, tangent);
 
 		attributeDescriptions[3].binding = 0;
 		attributeDescriptions[3].location = 3;
-		attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(Vertex, texCoord0);
+		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[3].offset = offsetof(Vertex, color);
 
 		attributeDescriptions[4].binding = 0;
 		attributeDescriptions[4].location = 4;
 		attributeDescriptions[4].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[4].offset = offsetof(Vertex, texCoord1);
+		attributeDescriptions[4].offset = offsetof(Vertex, texCoord0);
+
+		attributeDescriptions[5].binding = 0;
+		attributeDescriptions[5].location = 5;
+		attributeDescriptions[5].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[5].offset = offsetof(Vertex, texCoord1);
 
 		return attributeDescriptions;
 	}
 
-	bool operator==(const Vertex &other) const { return pos == other.pos && norm == other.norm && color == other.color && texCoord0 == other.texCoord0 && texCoord1 == other.texCoord1;
+	bool operator==(const Vertex &other) const { return pos == other.pos && norm == other.norm && tangent == other.tangent && color == other.color && texCoord0 == other.texCoord0 && texCoord1 == other.texCoord1;
 	}
 };
 

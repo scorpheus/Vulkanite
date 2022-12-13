@@ -1,5 +1,6 @@
 #include "core_utils.h"
-#include <string>
+
+#include <chrono>
 #include <stdexcept>
 
 VkInstance instance;
@@ -145,6 +146,7 @@ void createImage(uint32_t width,
 	imageInfo.usage = usage;
 	imageInfo.samples = numSamples;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.flags = VK_SHARING_MODE_EXCLUSIVE;
 
 	if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image!");

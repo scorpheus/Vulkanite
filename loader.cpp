@@ -408,6 +408,7 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	VkPushConstantRange pushConstantRange{};
 	pushConstantRange.size = sizeof(PushConstBlockMaterial);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	pushConstantRange.offset = 0;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -487,8 +488,7 @@ void createUniformParamsBuffers() {
 }
 
 void updateUniformParamsBuffer(uint32_t currentFrame) {
-	UBOParams uboParams{};
-	uboParams.lightDir = {0, 0, 0, 0};
+	uboParams.lightDir = {0, -1, 0, 0};
 	uboParams.envRot = 0.f;
 	uboParams.exposure = 1.f;
 	uboParams.SHRed = {-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765, 0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606, 1.7490483522415161
@@ -558,8 +558,9 @@ void loadSceneGLTF() {
 	createUniformParamsBuffers();
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		updateUniformParamsBuffer(i);
-	//sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
-	sceneGLTF = loadSceneGltf("models/NormalTangentTest.glb");
+	sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
+	//sceneGLTF = loadSceneGltf("models/NormalTangentTest.glb");
+	//sceneGLTF = loadSceneGltf("models/cube.gltf");
 	
 }
 
@@ -592,9 +593,12 @@ void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 }
 
 void deleteModel() {
+	return;
 	for (auto obj : scene) {
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
+			if(i<obj.uniformBuffers.size())
+				vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
+			if (i < obj.uniformBuffersMemory.size())
 			vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
 		}
 

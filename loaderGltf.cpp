@@ -8,6 +8,7 @@
 //#define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_NO_INCLUDE_JSON
+#define TINYGLTF_USE_CPP14
 #include <nlohmann/json.hpp>
 
 #include "loader.h"
@@ -444,7 +445,18 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	std::string dst_path;
 	matGLTF mat{
 		textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
-		{{}, {}, 0, 0, 0, 0, 0, 1, 1, 0, 0}
+		{
+			1,
+			1,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			{},
+			{}}
 	};
 
 	// BaseColor Texture
@@ -495,8 +507,48 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	//		SetMaterialFaceCulling(mat, hg::FC_Disabled);
 	//
 
-	return mat;
+	return std::move(mat);
 }
+
+void makeTangents(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices) {
+	uint32_t inconsistentUvs = 0;
+	for (uint32_t l = 0; l < indices.size(); ++l)
+		vertices[indices[l]].tangent = glm::vec4(0);
+	for (uint32_t l = 0; l < indices.size(); ++l) {
+		uint32_t i = indices[l];
+		uint32_t j = indices[(l + 1) % 3 + l / 3 * 3];
+		uint32_t k = indices[(l + 2) % 3 + l / 3 * 3];
+		glm::vec3 n = vertices[i].norm;
+		glm::vec3 v1 = vertices[j].pos - vertices[i].pos, v2 = vertices[k].pos - vertices[i].pos;
+		glm::vec2 t1 = vertices[j].texCoord0 - vertices[i].texCoord0, t2 = vertices[k].texCoord0 - vertices[i].texCoord0;
+
+		// Is the texture flipped?
+		float uv2xArea = t1.x * t2.y - t1.y * t2.x;
+		if (std::abs(uv2xArea) < 0x1p-20)
+			continue; // Smaller than 1/2 pixel at 1024x1024
+		float flip = uv2xArea > 0 ? 1 : -1;
+		// 'flip' or '-flip'; depends on the handedness of the space.
+		if (vertices[i].tangent.w != 0 && vertices[i].tangent.w != -flip)
+			++inconsistentUvs;
+		vertices[i].tangent.w = -flip;
+
+		// Project triangle onto tangent plane
+		v1 -= n * dot(v1, n);
+		v2 -= n * dot(v2, n);
+		// Tangent is object space direction of texture coordinates
+		glm::vec3 s = glm::normalize((t2.y * v1 - t1.y * v2) * flip);
+
+		// Use angle between projected v1 and v2 as weight
+		float angle = std::acos(dot(v1, v2) / (length(v1) * length(v2)));
+		vertices[i].tangent += glm::vec4(s * angle, 0);
+	}
+	for (uint32_t l = 0; l < indices.size(); ++l) {
+		glm::vec4 &t = vertices[indices[l]].tangent;
+		t = glm::vec4(glm::normalize(glm::vec3(t.x, t.y, t.z)), t.w);
+	}
+	// std::cerr << inconsistentUvs << " inconsistent UVs\n";
+}
+
 
 #define __PolIndex (pol_index[p] + v)
 #define __PolRemapIndex (pol_index[p] + (geo.pol[p].vtx_count - 1 - v))
@@ -506,6 +558,7 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 
 	// Boolean used to check if we have converted the vertex buffer format
 	bool convertedToTriangleList = false;
+	bool hasTangent = false;
 	// This permit to get a type agnostic way of reading the index buffer
 	std::unique_ptr<intArrayBase> indicesArrayPtr = nullptr;
 
@@ -680,7 +733,7 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 						*writter = [dataPtr, byte_stride, max_components](float *w, uint32_t p) {
 							const double *f = (const double*)(dataPtr + p * byte_stride);
 							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = (float)f[i];
+								w[i] = static_cast<float>(f[i]);
 							}
 						};
 						break;
@@ -782,13 +835,6 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 						w_normal(&n.x, i);
 						prim.vertices[i].norm = n;
 					}
-					/*				glm::vec3 n;
-								for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
-									w_normal(&n.x, geo.binding[i] - start_id_vtx);
-									n.z = -n.z;
-									geo.normal.push_back(n);
-								}
-						*/
 				}
 
 				// Face varying comment on the normals is also true for the UVs
@@ -800,10 +846,6 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 						w_texcoord0(&uv.x, i);
 						prim.vertices[i].texCoord0 = uv;
 					}
-					/*		for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
-								w_texcoord0(&uv.x, geo.binding[i] - start_id_vtx);
-								geo.uv[0].push_back(uv);
-							}*/
 				}
 				// Face varying comment on the normals is also true for the UVs
 				if (attribute.first == "TEXCOORD_1") {
@@ -814,11 +856,6 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 						w_texcoord1(&uv.x, i);
 						prim.vertices[i].texCoord1 = uv;
 					}
-					/*glm::vec2 uv;
-					for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
-						w_texcoord1(&uv.x, geo.binding[i] - start_id_vtx);
-						geo.uv[1].push_back(uv);
-					}*/
 				}
 
 				//// JOINTS_0
@@ -856,26 +893,25 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 				//}
 			}
 
-			//// special for the tangent, because it need the normal to compute the bitangent
-			//for (const auto &attribute : meshPrimitive.attributes) {
-			//	const auto attribAccessor = model.accessors[attribute.second];
-			//	const auto count = attribAccessor.count;
+			// special for the tangent, because it need the normal to compute the bitangent
+			for (const auto &attribute : meshPrimitive.attributes) {
+				const auto attribAccessor = model.accessors[attribute.second];
+				const auto count = attribAccessor.count;
 
-			//	// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
+				// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
 
-			//	spdlog::debug(fmt::format("attribute string is : {}", attribute.first).c_str());
-			//	if (attribute.first == "TANGENT") {
-			//		spdlog::debug("found tangent attribute");
+				spdlog::debug(fmt::format("attribute string is : {}", attribute.first).c_str());
+				if (attribute.first == "TANGENT") {
+					spdlog::debug("found tangent attribute");
+					hasTangent = true;
 
-			//		glm::vec4 t;
-			//		for (size_t i{start_id_binding}; i < geo.binding.size(); ++i) {
-			//			w_tangent(&t.x, geo.binding[i] - start_id_vtx);
-			//			geo.tangent.push_back(hg::Geometry::TangentFrame{
-			//				glm::vec3(t.x, t.y, t.z), hg::Cross(geo.normal[geo.binding[i] - start_id_vtx], glm::vec3(t.x, t.y, t.z)) * t.w
-			//			});
-			//		}
-			//	}
-			//}
+					glm::vec4 t;
+					for (uint32_t i{0}; i < count; ++i) {
+						w_normal(&t.x, i);
+						prim.vertices[i].tangent = t;
+					}
+				}
+			}
 			break;
 		}
 		default:
@@ -889,8 +925,13 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 			throw std::runtime_error("primitive is not triangle based, ignoring");
 	}
 
-}
 
+	// check if there is tangent, if not recompile
+	if (!hasTangent) {
+		spdlog::debug("    - Recalculate tangent frames");
+		makeTangents(prim.vertices, prim.indices);
+	}
+}
 //
 static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &node, const int &gltf_id_node) {
 
@@ -1218,7 +1259,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// create white texture
 	{
 		std::string imageName("WhiteTex");
-		textureCache[imageName] = textureGLTF{}; 
+		textureCache[imageName] = textureGLTF{};
 		auto &tex = textureCache[imageName];
 
 		tex.name = imageName;

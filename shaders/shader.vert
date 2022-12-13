@@ -2,15 +2,17 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNorm;
-layout(location = 2) in vec3 inColor;
-layout(location = 3) in vec2 inTexCoord0;
-layout(location = 4) in vec2 inTexCoord1;
+layout(location = 2) in vec4 inTangent;
+layout(location = 3) in vec3 inColor;
+layout(location = 4) in vec2 inTexCoord0;
+layout(location = 5) in vec2 inTexCoord1;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord0;
 layout(location = 2) out vec2 fragTexCoord1;
 layout(location = 3) out vec3 fragNorm;
 layout(location = 4) out vec3 fragWorldPos;
+layout(location = 5) out vec4 fragTangent;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -25,5 +27,6 @@ void main() {
     fragColor = inColor;
     fragTexCoord0 = inTexCoord0;
     fragTexCoord1 = inTexCoord1;
-    fragNorm = inNorm * 2. - 1.;//normalize(transpose(inverse(mat3(ubo.model))) * inNorm);
+    fragNorm = (ubo.model * vec4(inNorm, 0)).xyz;
+    fragTangent = vec4((ubo.model * vec4(inTangent.xyz, 0)).xyz, inTangent.w);
 }
