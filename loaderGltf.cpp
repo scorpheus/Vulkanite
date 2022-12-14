@@ -11,6 +11,8 @@
 #define TINYGLTF_USE_CPP14
 #include <nlohmann/json.hpp>
 
+#include "camera.h"
+#include "computeMikkTSpace.h"
 #include "loader.h"
 #include "tiny_gltf.h"
 using namespace tinygltf;
@@ -21,12 +23,11 @@ using namespace tinygltf;
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 std::map<std::string, textureGLTF> textureCache;
 
 bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
-
 	std::string imageName = image->uri;
 
 	if (image->uri.empty())
@@ -388,7 +389,6 @@ struct m44fArray {
 
 
 static const textureGLTF& ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
-
 	if (textureCache.find(imageName) != textureCache.end()) {
 		return textureCache[imageName];
 	}
@@ -452,11 +452,12 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 			0,
 			0,
 			0,
-			0,
+			-1,
 			0,
 			0,
 			{},
-			{}}
+			{}
+		}
 	};
 
 	// BaseColor Texture
@@ -509,46 +510,6 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	return std::move(mat);
 }
-
-void makeTangents(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices) {
-	uint32_t inconsistentUvs = 0;
-	for (uint32_t l = 0; l < indices.size(); ++l)
-		vertices[indices[l]].tangent = glm::vec4(0);
-	for (uint32_t l = 0; l < indices.size(); ++l) {
-		uint32_t i = indices[l];
-		uint32_t j = indices[(l + 1) % 3 + l / 3 * 3];
-		uint32_t k = indices[(l + 2) % 3 + l / 3 * 3];
-		glm::vec3 n = vertices[i].norm;
-		glm::vec3 v1 = vertices[j].pos - vertices[i].pos, v2 = vertices[k].pos - vertices[i].pos;
-		glm::vec2 t1 = vertices[j].texCoord0 - vertices[i].texCoord0, t2 = vertices[k].texCoord0 - vertices[i].texCoord0;
-
-		// Is the texture flipped?
-		float uv2xArea = t1.x * t2.y - t1.y * t2.x;
-		if (std::abs(uv2xArea) < 0x1p-20)
-			continue; // Smaller than 1/2 pixel at 1024x1024
-		float flip = uv2xArea > 0 ? 1 : -1;
-		// 'flip' or '-flip'; depends on the handedness of the space.
-		if (vertices[i].tangent.w != 0 && vertices[i].tangent.w != -flip)
-			++inconsistentUvs;
-		vertices[i].tangent.w = -flip;
-
-		// Project triangle onto tangent plane
-		v1 -= n * dot(v1, n);
-		v2 -= n * dot(v2, n);
-		// Tangent is object space direction of texture coordinates
-		glm::vec3 s = glm::normalize((t2.y * v1 - t1.y * v2) * flip);
-
-		// Use angle between projected v1 and v2 as weight
-		float angle = std::acos(dot(v1, v2) / (length(v1) * length(v2)));
-		vertices[i].tangent += glm::vec4(s * angle, 0);
-	}
-	for (uint32_t l = 0; l < indices.size(); ++l) {
-		glm::vec4 &t = vertices[indices[l]].tangent;
-		t = glm::vec4(glm::normalize(glm::vec3(t.x, t.y, t.z)), t.w);
-	}
-	// std::cerr << inconsistentUvs << " inconsistent UVs\n";
-}
-
 
 #define __PolIndex (pol_index[p] + v)
 #define __PolRemapIndex (pol_index[p] + (geo.pol[p].vtx_count - 1 - v))
@@ -929,12 +890,13 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 	// check if there is tangent, if not recompile
 	if (!hasTangent) {
 		spdlog::debug("    - Recalculate tangent frames");
-		makeTangents(prim.vertices, prim.indices);
+		CalcTangents calc;
+		calc.calc(&prim);
 	}
 }
+
 //
 static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &node, const int &gltf_id_node) {
-
 	// if there is no mesh or no skin, nothing inside objectGLTF
 	if (gltf_node.mesh < 0 && gltf_node.skin < 0)
 		return;
@@ -949,8 +911,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 		int primitiveId = 0;
 		for (auto meshPrimitive : gltf_mesh.primitives) {
 			objectGLTF prim{};
-
-			prim.world = node.world;
+			
 			ImportGeometry(model, meshPrimitive, primitiveId, prim);
 
 			// MATERIALS
@@ -962,28 +923,15 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 
 				//	objectGLTF.SetMaterial(primitiveId, std::move(mat));
 				//	objectGLTF.SetMaterialName(primitiveId, gltf_mat.name.empty() ? fmt::format("mat_{}", primitiveId) : gltf_mat.name);
-
 			} else {
 				// make a dummy material to see the objectGLTF in the engine
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
 
-				//matGLTF mat;
-				//std::string shader;
-
-				//shader = "core/shader/pbr.hps";
-
-				//if (!config.shader.empty())
-				//	shader = config.shader; // use override
-
-				//spdlog::debug(fmt::format("    - Using pipeline shader '{}'", shader));
-				//mat.program = resources.programs.Add(shader.c_str(), {});
-
-				//mat.values["uBaseOpacityColor"] = {bgfx::UniformType::Vec4, {1.f, 1.f, 1.f, 1.f}};
-				//mat.values["uOcclusionRoughnessMetalnessColor"] = {bgfx::UniformType::Vec4, {1.f, 1.f, 0.f, -1.f}};
-				//mat.values["uSelfColor"] = {bgfx::UniformType::Vec4, {0.f, 0.f, 0.f, -1.f}};
-
-				//objectGLTF.SetMaterial(primitiveId, std::move(mat));
-				//objectGLTF.SetMaterialName(primitiveId, "dummy_mat");				
+				matGLTF mat{
+					textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
+					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0,0,0}}
+				};
+				prim.mat = mat;
 			}
 
 			// create VULKAN need
@@ -1095,28 +1043,29 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 
 	if (gltf_node.mesh >= 0 || gltf_node.skin >= 0)
 		spdlog::debug(fmt::format("Import geometry to '{}'", path));
-
 }
 
-//
-//static void ImportCamera(const Model &model, const Node &gltf_node, hg::Node &node, std::vector<objectGLTF> &scene) {
-//	auto camera = scene.CreateCamera();
-//
-//	auto gltf_camera = model.cameras[gltf_node.camera];
-//
-//	if (gltf_camera.type == "perspective") {
-//			camera.SetZNear(gltf_camera.perspective.znear);
-//			camera.SetZFar(gltf_camera.perspective.zfar);
-//			camera.SetFov(static_cast<float>(gltf_camera.perspective.yfov));
-//			camera.SetIsOrthographic(false);
-//	} else if (gltf_camera.type == "orthographic") {
-//			camera.SetZNear(gltf_camera.orthographic.znear);
-//			camera.SetZFar(gltf_camera.orthographic.zfar);
-//			camera.SetIsOrthographic(true);
-//	}
-//	node.SetCamera(camera);
-//}
-//
+
+static void ImportCamera(const Model &model, const Node &gltf_node, objectGLTF &node) {
+	//auto camera = scene.CreateCamera();
+
+	//auto gltf_camera = model.cameras[gltf_node.camera];
+
+	//if (gltf_camera.type == "perspective") {
+	//		camera.SetZNear(gltf_camera.perspective.znear);
+	//		camera.SetZFar(gltf_camera.perspective.zfar);
+	//		camera.SetFov(static_cast<float>(gltf_camera.perspective.yfov));
+	//		camera.SetIsOrthographic(false);
+	//} else if (gltf_camera.type == "orthographic") {
+	//		camera.SetZNear(gltf_camera.orthographic.znear);
+	//		camera.SetZFar(gltf_camera.orthographic.zfar);
+	//		camera.SetIsOrthographic(true);
+	//}
+	//node.SetCamera(camera);
+
+	camWorld = node.world;
+}
+
 //static void ImportLight(const Model &model, const size_t &id_light, hg::Node &node, std::vector<objectGLTF> &scene) {
 //	auto light = scene.CreateLight();
 //
@@ -1157,36 +1106,23 @@ static objectGLTF ImportNode(const Model &model, const int &gltf_id_node) {
 
 	// set transform
 	if (gltf_node.matrix.size()) {
-		node.world = glm::mat4(static_cast<float>(gltf_node.matrix[0]), static_cast<float>(gltf_node.matrix[1]), static_cast<float>(gltf_node.matrix[2]),
-		                       static_cast<float>(gltf_node.matrix[3]),
-		                       static_cast<float>(gltf_node.matrix[4]), static_cast<float>(gltf_node.matrix[5]), static_cast<float>(gltf_node.matrix[6]),
-		                       static_cast<float>(gltf_node.matrix[7]),
-		                       static_cast<float>(gltf_node.matrix[8]), static_cast<float>(gltf_node.matrix[9]), static_cast<float>(gltf_node.matrix[10]),
-		                       static_cast<float>(gltf_node.matrix[11]),
-		                       static_cast<float>(gltf_node.matrix[12]), static_cast<float>(gltf_node.matrix[13]), static_cast<float>(gltf_node.matrix[14]),
-		                       static_cast<float>(gltf_node.matrix[15]));
+		node.world = glm::make_mat4x4(gltf_node.matrix.data());
 	} else {
-		glm::vec3 p(0, 0, 0), s(1, 1, 1);
-		glm::quat q(1, 0, 0, 0);
-
 		if (!gltf_node.translation.empty())
-			p = glm::vec3(gltf_node.translation[0], gltf_node.translation[1], gltf_node.translation[2]);
+			node.world = glm::translate(node.world, glm::vec3(glm::make_vec3(gltf_node.translation.data())));
 
-		if (!gltf_node.rotation.empty())
-			q = glm::quat(gltf_node.rotation[0], gltf_node.rotation[1], gltf_node.rotation[2], gltf_node.rotation[3]);
+		if (!gltf_node.rotation.empty()) {
+			const glm::quat q = glm::make_quat(gltf_node.rotation.data());
+			node.world *= glm::mat4(q);
+		}
 
 		if (!gltf_node.scale.empty())
-			s = glm::vec3(gltf_node.scale[0], gltf_node.scale[1], gltf_node.scale[2]);
-
-		glm::mat4 rot = glm::toMat4(q);
-		glm::mat4 trans = glm::translate(glm::mat4(1.0f), p);
-		glm::mat4 scale = glm::scale(glm::mat4(1.0f), s);
-		node.world = rot * trans * scale;
+			node.world = glm::scale(node.world, glm::vec3(glm::make_vec3(gltf_node.scale.data())));
 	}
 
-	//// is it a camera
-	//if (gltf_node.camera >= 0)
-	//		ImportCamera(model, gltf_node, node);
+	// is it a camera
+	if (gltf_node.camera >= 0)
+		ImportCamera(model, gltf_node, node);
 
 	//// is it a light
 	//auto KHR_lights_punctual = gltf_node.extensions.find("KHR_lights_punctual");
@@ -1271,7 +1207,6 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// Handle only one big scene
 	std::vector<objectGLTF> scene;
 	for (auto gltf_scene : model.scenes) {
-
 		for (auto gltf_id_node : gltf_scene.nodes) {
 			auto node = ImportNode(model, gltf_id_node);
 			scene.push_back(std::move(node));

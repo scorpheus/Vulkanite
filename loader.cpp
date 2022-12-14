@@ -29,7 +29,8 @@
 
 const std::string MODEL_PATH = "models/barrel.obj"; //"models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/Barrel_PropMaterial_baseColor.png"; //"textures/viking_room.png"
-const std::string MODEL_GLTF_PATH = "models/scene.gltf";
+//const std::string MODEL_GLTF_PATH = "D:/works_2/pbr/glTF-Sample-Models-master/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb";//"models/scene.gltf";
+const std::string MODEL_GLTF_PATH =  "D:/works_2/pbr/glTF-Sample-Models-master/OrientationTest/glTF-Binary/OrientationTest.glb"; //"models/test.gltf";
 
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -461,9 +462,9 @@ void createUniformBuffers(
 	}
 }
 
-void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj) {
+void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
 	UniformBufferObject ubo{};
-	ubo.model = obj.world;
+	ubo.model = obj.world * parent_world;
 	ubo.view = camWorld;
 	ubo.invView = glm::inverse(camWorld);
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
@@ -531,7 +532,7 @@ void loadSceneObj() {
 void drawModelObj(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 
 	for (auto &obj : scene) {
-		updateUniformBuffer(currentFrame, obj);
+		updateUniformBuffer(currentFrame, obj, obj.world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
 
@@ -564,9 +565,9 @@ void loadSceneGLTF() {
 	
 }
 
-void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj) {
+void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
 	if (obj.vertexBuffer) {
-		updateUniformBuffer(currentFrame, obj);
+		updateUniformBuffer(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
 
@@ -584,12 +585,12 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 	}
 
 	for (const auto &objChild : obj.children)
-		drawModelGLTF(commandBuffer, currentFrame, objChild);
+		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world);
 }
 
 void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {	
 	for (auto &obj : sceneGLTF)
-		drawModelGLTF(commandBuffer, currentFrame, obj);
+		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1));
 }
 
 void deleteModel() {

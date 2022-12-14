@@ -57,7 +57,7 @@ struct matGLTF {
 struct objectGLTF {
 	std::vector<objectGLTF> children;
 	std::string name;
-	glm::mat4 world;
+	glm::mat4 world {1};
 
 	matGLTF mat;
 

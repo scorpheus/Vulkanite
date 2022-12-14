@@ -464,6 +464,7 @@ vec3 pbrComputeSpecularForSphericalLight(vec3 eye, vec3 normal, vec3 posToLight,
 
 	return radiance;
 }
+
 vec3 tonemapReinhard(vec3 color) {
 	return pow(color / (color + vec3(1.0)), vec3(1.0 / 2.2));
 }
@@ -510,20 +511,21 @@ void main() {
 	vec3 P = fragWorldPos; // fragment world pos
 	vec3 V = normalize(GetT(ubo.invView) - P); // view vector	
 
-	// Normal
-	vec3 tangentNormal = texture(normalMap, material.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * 2.0 - 1.0;
-			
+	// normal
 	vec3 N = normalize(fragNorm);
 	vec3 T = normalize(fragTangent.xyz);
 	vec3 B = fragTangent.w * cross(fragNorm, fragTangent.xyz);
 
 	mat3 TBN = mat3(T, B, N);
 	
-	N = normalize( TBN *tangentNormal);
+	if( material.normalTextureSet >= 0){
+		vec3 tangentNormal = texture(normalMap, material.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * 2.0 - 1.0;			
+		N = normalize( TBN *tangentNormal);
+	}
 
 	float specular_level_value = 1.0 - specular_level;
 	vec3 specular_color = mix(vec3(0.08 * specular_level_value), albedo_color.xyz, vec3(metalness));
-
+	
 
 	vec3 color_with_light = vec3(0.0, 0.0, 0.0);
 
@@ -544,13 +546,13 @@ void main() {
 //	}
 
 	vec3 diffuse_color = pbrComputeDiffuse(N, albedo_color.xyz * (1.0 - metalness), occlusion);
-
+	
 	vec3 specular_pbr = pbrComputeSpecular(V, N, normalize(fragNorm), T, B, specular_color, roughness, occlusion);
 	//%constant% = tonemapReinhard(envIrradiance(normalize(v_normal)));
 //	vec3 color = tonemapReinhard(diffuse_color + specular_pbr + sRGB2linear(emissive.xyz));
 //	vec3 color = tonemapFilmic(diffuse_color + specular_pbr + sRGB2linear(emissive.xyz));
 	vec3 color = diffuse_color + specular_pbr + sRGB2linear(emissive.xyz) + color_with_light;
-
+	
 	float opacity = albedo_color.w;
 
 	outColor = vec4(color, opacity);

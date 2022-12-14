@@ -6,41 +6,47 @@
 
 //glm::mat4 camWorld(glm::lookAt(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
 glm::mat4 camWorld(1);
-static float camSpeed(1.f), camRotSpeed(2.f);
+static float camSpeed(3.f), camRotSpeed(1.5f);
 static float pitch(0), yaw(0), roll(0.f);
-static glm::vec3 translation(0, 0, -5);
+static glm::vec3 translation(0, 0, -8.);
 double xMousePos, yMousePos;
 
 void updateCamera(GLFWwindow *window, float deltaTime) {
-	
 	const glm::mat4 inverted = glm::inverse(camWorld);
 	const glm::vec3 forward = normalize(glm::vec3(inverted[2]));
 	const glm::vec3 right = normalize(glm::vec3(inverted[0]));
 	const glm::vec3 top = normalize(glm::vec3(inverted[1]));
 
+	float currentCamSpeed = camSpeed;
+
+	// speed up camera
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+		currentCamSpeed *= 2.f;
+	}
+
 	// Move forward
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		translation += forward * deltaTime * camSpeed;
+		translation += forward * deltaTime * currentCamSpeed;
 	}
 	// Move backward
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		translation -= forward * deltaTime * camSpeed;
+		translation -= forward * deltaTime * currentCamSpeed;
 	}
 	// Strafe right
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		translation -= right * deltaTime * camSpeed;
+		translation -= right * deltaTime * currentCamSpeed;
 	}
 	// Strafe left
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		translation += right * deltaTime * camSpeed;
+		translation += right * deltaTime * currentCamSpeed;
 	}
 	// Up
 	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-		translation -= top * deltaTime * camSpeed;
+		translation -= top * deltaTime * currentCamSpeed;
 	}
 	// Down
 	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-		translation += top * deltaTime * camSpeed;
+		translation += top * deltaTime * currentCamSpeed;
 	}
 
 	// mouse
@@ -64,9 +70,8 @@ void updateCamera(GLFWwindow *window, float deltaTime) {
 	glm::quat orientation = qPitch * qYaw;
 	orientation = glm::normalize(orientation);
 	glm::mat4 rotate = glm::mat4_cast(orientation);
-	
+
 	glm::mat4 translate = glm::mat4(1.0f);
 	translate = glm::translate(translate, translation);
 	camWorld = rotate * translate; //glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
 }

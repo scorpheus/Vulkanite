@@ -50,7 +50,7 @@ endif(MSVC)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # GLFW
-conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0
+conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325
 					GENERATORS cmake_find_package_multi)
 					
 foreach(TYPE Debug RelWithDebInfo Release)
@@ -67,8 +67,9 @@ find_package(tinyobjloader REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tinygltf REQUIRED)
+find_package(mikktspace REQUIRED)
 
-link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF)
+link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace)
 
 
 # create Vulkanite project
@@ -85,7 +86,9 @@ set(SOURCE_FILES main.cpp
 				camera.cpp
 				camera.h
 				core_utils.cpp
-				core_utils.h)
+				core_utils.h
+				computeMikkTSpace.cpp
+				computeMikkTSpace.h)
 add_executable(Vulkanite ${SOURCE_FILES})
 
 find_package(Vulkan)
