@@ -11,7 +11,6 @@ namespace fs = std::filesystem;
 #include <stb_image.h>
 
 
-
 void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
 	// Check if image format supports linear blitting
 	VkFormatProperties formatProperties;
@@ -112,7 +111,7 @@ void createTextureImage(const unsigned char *bytes, int size, VkImage &textureIm
 void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
 	int texWidth, texHeight, texChannels;
 	void *pixels;
-	if(fs::path(texturePath).extension() == ".hdr")
+	if (fs::path(texturePath).extension() == ".hdr")
 		pixels = stbi_loadf(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	else
 		pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -126,8 +125,14 @@ void createTextureImage(const std::string &texturePath, VkImage &textureImage, V
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 }
 
-void createTextureImage(void *pixels, const int &texWidth, const int &texHeight, const VkDeviceSize &imageSize, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels, VkFormat format) {
-
+void createTextureImage(void *pixels,
+                        const int &texWidth,
+                        const int &texHeight,
+                        const VkDeviceSize &imageSize,
+                        VkImage &textureImage,
+                        VkDeviceMemory &textureImageMemory,
+                        uint32_t &mipLevels,
+                        VkFormat format) {
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -141,9 +146,10 @@ void createTextureImage(void *pixels, const int &texWidth, const int &texHeight,
 
 	stbi_image_free(pixels);
 
-	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1; 
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL,
+	            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
 	transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -158,7 +164,9 @@ void createTextureImage(void *pixels, const int &texWidth, const int &texHeight,
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mipLevels, VkFormat format) { return createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels); }
+VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mipLevels, VkFormat format) {
+	return createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+}
 
 void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 	VkPhysicalDeviceProperties properties{};

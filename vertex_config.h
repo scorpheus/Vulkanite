@@ -62,7 +62,8 @@ struct Vertex {
 		return attributeDescriptions;
 	}
 
-	bool operator==(const Vertex &other) const { return pos == other.pos && norm == other.norm && tangent == other.tangent && color == other.color && texCoord0 == other.texCoord0 && texCoord1 == other.texCoord1;
+	bool operator==(const Vertex &other) const {
+		return pos == other.pos && norm == other.norm && tangent == other.tangent && color == other.color && texCoord0 == other.texCoord0 && texCoord1 == other.texCoord1;
 	}
 };
 

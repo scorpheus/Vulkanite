@@ -911,7 +911,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 		int primitiveId = 0;
 		for (auto meshPrimitive : gltf_mesh.primitives) {
 			objectGLTF prim{};
-			
+
 			ImportGeometry(model, meshPrimitive, primitiveId, prim);
 
 			// MATERIALS
@@ -929,7 +929,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 
 				matGLTF mat{
 					textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
-					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0,0,0}}
+					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}}
 				};
 				prim.mat = mat;
 			}

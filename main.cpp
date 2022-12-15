@@ -65,6 +65,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 		func(instance, debugMessenger, pAllocator);
 	}
 }
+
 class VulkaniteApplication {
 public:
 	void run() {
@@ -75,7 +76,6 @@ public:
 	}
 
 private:
-	
 	double lastTimeFrame = glfwGetTime(), currentTimeFrame, deltaTime;
 	GLFWwindow *window;
 	VkSurfaceKHR surface;
@@ -132,7 +132,7 @@ private:
 		createColorResources();
 		createDepthResources();
 		createFramebuffers();
-		
+
 		//loadSceneObj();
 		loadSceneGLTF();
 
@@ -840,8 +840,8 @@ private:
 
 	void drawFrame() {
 		currentTimeFrame = glfwGetTime();
-	    deltaTime = currentTimeFrame - lastTimeFrame;
-	    lastTimeFrame = currentTimeFrame;
+		deltaTime = currentTimeFrame - lastTimeFrame;
+		lastTimeFrame = currentTimeFrame;
 
 		updateCamera(window, deltaTime);
 
@@ -910,7 +910,6 @@ private:
 
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
-
 };
 
 int main() {

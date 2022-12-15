@@ -31,7 +31,7 @@
 const std::string MODEL_PATH = "models/barrel.obj"; //"models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/Barrel_PropMaterial_baseColor.png"; //"textures/viking_room.png"
 //const std::string MODEL_GLTF_PATH = "D:/works_2/pbr/glTF-Sample-Models-master/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb";//"models/scene.gltf";
-const std::string MODEL_GLTF_PATH =  "models/DamagedHelmet.glb";
+const std::string MODEL_GLTF_PATH = "models/DamagedHelmet.glb";
 
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -73,7 +73,6 @@ static std::vector<char> readFile(const std::string &filename) {
 }
 
 void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuffer, VkDeviceMemory &vertexBufferMemory) {
-
 	const VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 	VkBuffer stagingBuffer;
@@ -493,11 +492,19 @@ void updateUniformParamsBuffer(uint32_t currentFrame) {
 	uboParams.lightDir = {0, -1, 0, 0};
 	uboParams.envRot = 0.f;
 	uboParams.exposure = 1.f;
-	uboParams.SHRed = {-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765, 0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606, 1.7490483522415161
+	uboParams.SHRed = {
+		-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765,
+		0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606,
+		1.7490483522415161
 	};
-	uboParams.SHGreen = {-0.026353614404797554, 0.0420733205974102, -0.11874748021364212, -0.004994439892470837, 0.0420733205974102, 0.026353614404797554, 0.03807618096470833, 0.014554289169609547, -0.11874748021364212, 0.03807618096470833, 0.15525034070014954, 0.5655900835990906, -0.004994439892470837, 0.014554289169609547, 0.5655900835990906, 1.8003654479980469
+	uboParams.SHGreen = {
+		-0.026353614404797554, 0.0420733205974102, -0.11874748021364212, -0.004994439892470837, 0.0420733205974102, 0.026353614404797554, 0.03807618096470833, 0.014554289169609547,
+		-0.11874748021364212, 0.03807618096470833, 0.15525034070014954, 0.5655900835990906, -0.004994439892470837, 0.014554289169609547, 0.5655900835990906, 1.8003654479980469
 	};
-	uboParams.SHBlue = {-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765, 0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606, 1.7490483522415161
+	uboParams.SHBlue = {
+		-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765,
+		0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606,
+		1.7490483522415161
 	};
 
 	memcpy(uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof(uboParams));
@@ -531,7 +538,6 @@ void loadSceneObj() {
 }
 
 void drawModelObj(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
-
 	for (auto &obj : scene) {
 		updateUniformBuffer(currentFrame, obj, obj.world);
 
@@ -563,7 +569,6 @@ void loadSceneGLTF() {
 	sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
 	//sceneGLTF = loadSceneGltf("models/NormalTangentTest.glb");
 	//sceneGLTF = loadSceneGltf("models/cube.gltf");
-	
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
@@ -589,7 +594,7 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world);
 }
 
-void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {	
+void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	for (auto &obj : sceneGLTF)
 		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1));
 }
@@ -598,10 +603,10 @@ void deleteModel() {
 	return;
 	for (auto obj : scene) {
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			if(i<obj.uniformBuffers.size())
+			if (i < obj.uniformBuffers.size())
 				vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
 			if (i < obj.uniformBuffersMemory.size())
-			vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
+				vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
 		}
 
 		vkDestroyBuffer(device, obj.indexBuffer, nullptr);

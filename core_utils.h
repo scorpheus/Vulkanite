@@ -52,4 +52,3 @@ void transitionImageLayout(VkImage image,
                            VkImageLayout newLayout,
                            uint32_t mipLevels);
 void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-

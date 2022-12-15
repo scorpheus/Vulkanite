@@ -8,4 +8,4 @@
 struct GLFWwindow;
 
 extern glm::mat4 camWorld;
-void updateCamera(GLFWwindow* window, float deltaTime);
+void updateCamera(GLFWwindow *window, float deltaTime);

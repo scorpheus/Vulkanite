@@ -57,7 +57,7 @@ struct matGLTF {
 struct objectGLTF {
 	std::vector<objectGLTF> children;
 	std::string name;
-	glm::mat4 world {1};
+	glm::mat4 world{1};
 
 	matGLTF mat;
 
@@ -78,8 +78,7 @@ struct objectGLTF {
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::vector<void *> uniformBuffersMapped;
-	
+	std::vector<void*> uniformBuffersMapped;
 };
 
 std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath);
