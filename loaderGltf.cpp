@@ -388,11 +388,11 @@ struct m44fArray {
 //}
 
 
-static const textureGLTF& ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
+static textureGLTF* ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
 	if (textureCache.find(imageName) != textureCache.end()) {
-		return textureCache[imageName];
+		return &textureCache[imageName];
 	}
-	return textureGLTF{};
+	return nullptr;
 	//auto texture = model.textures[textureIndex];
 	//uint32_t flags = BGFX_SAMPLER_NONE;
 	//if (texture.sampler >= 0) {
@@ -420,9 +420,9 @@ static const textureGLTF& ImportTexture(const Model &model, const int &textureIn
 }
 
 //
-static const textureGLTF& ImportTexture(const Model &model, const int &textureIndex) {
+static textureGLTF* ImportTexture(const Model &model, const int &textureIndex) {
 	if (textureIndex < 0)
-		return textureGLTF{};
+		return nullptr;
 
 	const auto &texture = model.textures[textureIndex];
 	const auto &image = model.images[texture.source];
@@ -444,7 +444,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	//
 	std::string dst_path;
 	matGLTF mat{
-		textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
+		&textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"],
 		{
 			1,
 			1,
@@ -461,32 +461,32 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	};
 
 	// BaseColor Texture
-	if (const auto &baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture.textureImage) {
-		spdlog::debug(fmt::format("    - uBaseOpacityMap: {}", baseColorTexture.name));
+	if (auto *baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture != nullptr) {
+		spdlog::debug(fmt::format("    - uBaseOpacityMap: {}", baseColorTexture->name));
 		mat.albedoTex = baseColorTexture;
 		mat.pushConstBlockMaterial.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
 	}
 
 	// metallic Roughness Texture
-	if (const auto &metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture.textureImage) {
+	if (auto *metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture != nullptr) {
 		mat.metallicRoughnessTex = metallicRoughnessTexture;
 		mat.pushConstBlockMaterial.metallicRoughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
 	}
 
 	// ao Texture
-	if (const auto &occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture.textureImage) {
+	if (auto *occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture != nullptr) {
 		mat.aoTex = occlusionTexture;
 		mat.pushConstBlockMaterial.occlusionTextureSet = gltf_mat.occlusionTexture.texCoord;
 	}
 
 	// normal Texture
-	if (const auto &normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture.textureImage) {
+	if (auto *normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture != nullptr) {
 		mat.normalTex = normalTexture;
 		mat.pushConstBlockMaterial.normalTextureSet = gltf_mat.normalTexture.texCoord;
 	}
 
 	// emissive Texture
-	if (const auto &emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture.textureImage) {
+	if (auto *emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture != nullptr) {
 		mat.emissiveTex = emissiveTexture;
 		mat.pushConstBlockMaterial.emissiveTextureSet = gltf_mat.emissiveTexture.texCoord;
 	}
@@ -928,7 +928,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
 
 				matGLTF mat{
-					textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
+					&textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"],
 					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}}
 				};
 				prim.mat = mat;

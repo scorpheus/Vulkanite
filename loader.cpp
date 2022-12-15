@@ -237,20 +237,20 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 
 		std::array<VkDescriptorImageInfo, 5> imageInfo;
 		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[0].imageView = mat.albedoTex.textureImageView;
-		imageInfo[0].sampler = mat.albedoTex.textureSampler;
+		imageInfo[0].imageView = mat.albedoTex->textureImageView;
+		imageInfo[0].sampler = mat.albedoTex->textureSampler;
 		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[1].imageView = mat.metallicRoughnessTex.textureImageView;
-		imageInfo[1].sampler = mat.metallicRoughnessTex.textureSampler;
+		imageInfo[1].imageView = mat.metallicRoughnessTex->textureImageView;
+		imageInfo[1].sampler = mat.metallicRoughnessTex->textureSampler;
 		imageInfo[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[2].imageView = mat.normalTex.textureImageView;
-		imageInfo[2].sampler = mat.normalTex.textureSampler;
+		imageInfo[2].imageView = mat.normalTex->textureImageView;
+		imageInfo[2].sampler = mat.normalTex->textureSampler;
 		imageInfo[3].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[3].imageView = mat.aoTex.textureImageView;
-		imageInfo[3].sampler = mat.aoTex.textureSampler;
+		imageInfo[3].imageView = mat.aoTex->textureImageView;
+		imageInfo[3].sampler = mat.aoTex->textureSampler;
 		imageInfo[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[4].imageView = mat.emissiveTex.textureImageView;
-		imageInfo[4].sampler = mat.emissiveTex.textureSampler;
+		imageInfo[4].imageView = mat.emissiveTex->textureImageView;
+		imageInfo[4].sampler = mat.emissiveTex->textureSampler;
 
 		std::array<VkWriteDescriptorSet, 3 + imageInfo.size()> descriptorWrites{};
 

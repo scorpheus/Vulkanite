@@ -56,7 +56,7 @@ int CalcTangents::get_num_vertices_of_face(const SMikkTSpaceContext *context, co
 void CalcTangents::get_position(const SMikkTSpaceContext *context, float *outpos, const int iFace, const int iVert) {
 	objectGLTF *working_objectGLTF = static_cast<objectGLTF*>(context->m_pUserData);
 
-	const auto &index = get_vertex_index(context, iFace, iVert);
+	const auto index = get_vertex_index(context, iFace, iVert);
 	const auto &vertex = working_objectGLTF->vertices[index];
 
 	//if (CALC_TANGENTS_DEBUG) {
@@ -71,8 +71,8 @@ void CalcTangents::get_position(const SMikkTSpaceContext *context, float *outpos
 void CalcTangents::get_normal(const SMikkTSpaceContext *context, float *outnormal, const int iFace, const int iVert) {
 	objectGLTF *working_objectGLTF = static_cast<objectGLTF*>(context->m_pUserData);
 
-	const auto &index = get_vertex_index(context, iFace, iVert);
-	const auto &vertex = working_objectGLTF->vertices[index];
+	const auto index = get_vertex_index(context, iFace, iVert);
+	const auto vertex = working_objectGLTF->vertices[index];
 
 	//if (CALC_TANGENTS_DEBUG) {
 	//	spdlog::debug("[CalcTangents] get_normal({}): {}", index, glm::to_string(vertex.norm));
@@ -86,8 +86,8 @@ void CalcTangents::get_normal(const SMikkTSpaceContext *context, float *outnorma
 void CalcTangents::get_tex_coords(const SMikkTSpaceContext *context, float *outuv, const int iFace, const int iVert) {
 	objectGLTF *working_objectGLTF = static_cast<objectGLTF*>(context->m_pUserData);
 
-	const auto &index = get_vertex_index(context, iFace, iVert);
-	const auto &vertex = working_objectGLTF->vertices[index];
+	const auto index = get_vertex_index(context, iFace, iVert);
+	const auto vertex = working_objectGLTF->vertices[index];
 
 	//if (CALC_TANGENTS_DEBUG) {
 	//	spdlog::debug("[CalcTangents] get_tex_coords({}): {}", index, glm::to_string(vertex.texCoord0));
@@ -100,7 +100,7 @@ void CalcTangents::get_tex_coords(const SMikkTSpaceContext *context, float *outu
 void CalcTangents::set_tspace_basic(const SMikkTSpaceContext *context, const float *tangentu, const float fSign, const int iFace, const int iVert) {
 	objectGLTF *working_objectGLTF = static_cast<objectGLTF*>(context->m_pUserData);
 
-	const auto &index = get_vertex_index(context, iFace, iVert);
+	const auto index = get_vertex_index(context, iFace, iVert);
 	auto *vertex = &working_objectGLTF->vertices[index];
 
 	vertex->tangent.x = tangentu[0];
@@ -113,13 +113,13 @@ void CalcTangents::set_tspace_basic(const SMikkTSpaceContext *context, const flo
 	//}
 }
 
-const int& CalcTangents::get_vertex_index(const SMikkTSpaceContext *context, int iFace, int iVert) {
+const int CalcTangents::get_vertex_index(const SMikkTSpaceContext *context, int iFace, int iVert) {
 	objectGLTF *working_objectGLTF = static_cast<objectGLTF*>(context->m_pUserData);
 
-	const auto &face_size = get_num_vertices_of_face(context, iFace);
+	const auto face_size = get_num_vertices_of_face(context, iFace);
 
 	const auto &indices_index = (iFace * face_size) + iVert;
 
-	const auto &index = working_objectGLTF->indices[indices_index];
+	const auto index = working_objectGLTF->indices[indices_index];
 	return index;
 }

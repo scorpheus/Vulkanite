@@ -12,7 +12,7 @@ private:
 	SMikkTSpaceInterface iface{};
 	SMikkTSpaceContext context{};
 
-	static const int& get_vertex_index(const SMikkTSpaceContext *context, int iFace, int iVert);
+	static const int get_vertex_index(const SMikkTSpaceContext *context, int iFace, int iVert);
 
 	static int get_num_faces(const SMikkTSpaceContext *context);
 	static int get_num_vertices_of_face(const SMikkTSpaceContext *context, int iFace);

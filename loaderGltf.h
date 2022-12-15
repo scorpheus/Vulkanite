@@ -45,11 +45,11 @@ struct PushConstBlockMaterial {
 };
 
 struct matGLTF {
-	textureGLTF albedoTex;
-	textureGLTF metallicRoughnessTex;
-	textureGLTF aoTex;
-	textureGLTF normalTex;
-	textureGLTF emissiveTex;
+	textureGLTF* albedoTex;
+	textureGLTF* metallicRoughnessTex;
+	textureGLTF* aoTex;
+	textureGLTF* normalTex;
+	textureGLTF* emissiveTex;
 
 	PushConstBlockMaterial pushConstBlockMaterial;
 };
