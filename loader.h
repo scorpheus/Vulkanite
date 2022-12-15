@@ -18,7 +18,8 @@ void createGraphicsPipeline(const std::string &vertexPath,
                             VkPipeline &graphicsPipeline,
                             const VkRenderPass &renderPass,
                             const VkSampleCountFlagBits &msaaSamples,
-                            const VkDescriptorSetLayout &descriptorSetLayout);
+                            const VkDescriptorSetLayout &descriptorSetLayout,
+                            const float &alphaMask);
 
 void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuffer, VkDeviceMemory &vertexBufferMemory);
 void createIndexBuffer(const std::vector<uint32_t> &indices, VkBuffer &indexBuffer, VkDeviceMemory &indexBufferMemory);

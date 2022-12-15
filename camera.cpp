@@ -6,9 +6,9 @@
 
 //glm::mat4 camWorld(glm::lookAt(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
 glm::mat4 camWorld(1);
-static float camSpeed(3.f), camRotSpeed(0.5f);
-static float pitch(0), yaw(0), roll(0.f);
-static glm::vec3 translation(0, 0, -8.);
+static float camSpeed(1.f), camRotSpeed(0.5f);
+static float pitch(0.376), yaw(-2.2), roll(0.f);
+static glm::vec3 translation(-0.656056166, -0.294942170, 0.433864325);
 double xMousePos, yMousePos;
 
 void updateCamera(GLFWwindow *window, float deltaTime) {

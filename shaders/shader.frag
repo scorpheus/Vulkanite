@@ -493,6 +493,10 @@ void main() {
 	vec4 albedo_color = texture(colorMap, material.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
 	//albedo_color.xyz = albedo_color.xyz * material.baseColorFactor.xyz;
 	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * material.baseColorFactor.xyz;
+	albedo_color.w = albedo_color.w * material.baseColorFactor.w;
+
+	if(material.alphaMask == 2 && albedo_color.a < material.alphaMaskCutoff)
+		discard;
 	 
 	float occlusion = texture(aoMap, material.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
 	float metalness = texture(metallicRoughnessMap, material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * material.metallicFactor;

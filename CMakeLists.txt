@@ -41,7 +41,7 @@ if(MSVC)
 else()
 	# Ignore Visual Studio pragma regions
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage -Og")
+	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage -Og")
 endif(MSVC)
 
 # debug to list every path cmake check for find_library, very useful
@@ -102,7 +102,6 @@ if(WIN32)
 	SET_TARGET_PROPERTIES(Vulkanite PROPERTIES LINK_FLAGS_RELEASE "/LTCG")
 	add_compile_options(/permissive- /std:c++latest)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Vulkanite)
-	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
 endif()
 
 # shaders
@@ -111,7 +110,7 @@ include(cmake/utilities.cmake)
 # GLSL to SPIR-V custom build
 compile_glsl_directory(
 	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
-	DST "${CMAKE_CURRENT_SOURCE_DIR}/Vulkanite/spv" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
 	VULKAN_TARGET "vulkan1.0"
 	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
 	)
@@ -119,13 +118,23 @@ target_sources(Vulkanite PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
 source_group("Shader Sources"  FILES ${GLSL_SOURCES})
 source_group("Shader Headers"  FILES ${GLSL_HEADERS})
 
+# ressources include in exe
+include(cmake/CMakeRC.cmake)
+
+set(ENVMAP textures/limpopo_golf_course_1k.hdr)
+set(MODEL_GLTF_PATH models/abeautifulgame.glb)
+cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
+	${ENVMAP}
+	${MODEL_GLTF_PATH}	
+	textures/WhiteTex.png
+	spv/shader.frag.spv
+	spv/shader.vert.spv
+)
+target_link_libraries(Vulkanite PRIVATE gltf-resources)
+target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
 
 # modify where cmake install directory
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix" FORCE)
 
 # install binary, runtime dependencies and data dependencies
 install(TARGETS Vulkanite ARCHIVE DESTINATION Vulkanite RUNTIME DESTINATION Vulkanite LIBRARY DESTINATION Vulkanite COMPONENT Vulkanite)
-
-install(FILES ${SPV_OUTPUT} DESTINATION vulkanite/spv COMPONENT Vulkanite)
-install(DIRECTORY textures/ DESTINATION Vulkanite/textures COMPONENT Vulkanite)
-install(DIRECTORY models/ DESTINATION Vulkanite/models COMPONENT Vulkanite)

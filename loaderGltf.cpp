@@ -11,6 +11,9 @@
 #define TINYGLTF_USE_CPP14
 #include <nlohmann/json.hpp>
 
+#include <cmrc/cmrc.hpp>
+CMRC_DECLARE(gltf_rc);
+
 #include "camera.h"
 #include "computeMikkTSpace.h"
 #include "loader.h"
@@ -25,21 +28,21 @@ namespace fs = std::filesystem;
 
 #include <glm/gtc/type_ptr.hpp>
 
-std::map<std::string, textureGLTF> textureCache;
+std::map<std::string, std::shared_ptr<textureGLTF>> textureCache;
 
 bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
 	std::string imageName = image->uri;
 
 	if (image->uri.empty())
 		imageName = image->name.empty() ? fmt::format("{}", image_idx) : image->name;
+	
+	const std::shared_ptr<textureGLTF> tex(new textureGLTF);
+	tex->name = imageName;
+	createTextureImage(bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels);
+	tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+	createTextureSampler(tex->textureSampler, tex->mipLevels);
 
-	textureCache[imageName] = textureGLTF{};
-	auto &tex = textureCache[imageName];
-
-	tex.name = imageName;
-	createTextureImage(bytes, size, tex.textureImage, tex.textureImageMemory, tex.mipLevels);
-	tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-	createTextureSampler(tex.textureSampler, tex.mipLevels);
+	textureCache[imageName] = tex;
 
 	return true;
 }
@@ -388,9 +391,9 @@ struct m44fArray {
 //}
 
 
-static textureGLTF* ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
+static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
 	if (textureCache.find(imageName) != textureCache.end()) {
-		return &textureCache[imageName];
+		return textureCache[imageName];
 	}
 	return nullptr;
 	//auto texture = model.textures[textureIndex];
@@ -420,7 +423,7 @@ static textureGLTF* ImportTexture(const Model &model, const int &textureIndex, c
 }
 
 //
-static textureGLTF* ImportTexture(const Model &model, const int &textureIndex) {
+static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int &textureIndex) {
 	if (textureIndex < 0)
 		return nullptr;
 
@@ -444,7 +447,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	//
 	std::string dst_path;
 	matGLTF mat{
-		&textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"],
+		false, textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
 		{
 			1,
 			1,
@@ -461,32 +464,32 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	};
 
 	// BaseColor Texture
-	if (auto *baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture != nullptr) {
+	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture != nullptr) {
 		spdlog::debug(fmt::format("    - uBaseOpacityMap: {}", baseColorTexture->name));
 		mat.albedoTex = baseColorTexture;
 		mat.pushConstBlockMaterial.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
 	}
 
 	// metallic Roughness Texture
-	if (auto *metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture != nullptr) {
+	if (auto metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture != nullptr) {
 		mat.metallicRoughnessTex = metallicRoughnessTexture;
 		mat.pushConstBlockMaterial.metallicRoughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
 	}
 
 	// ao Texture
-	if (auto *occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture != nullptr) {
+	if (auto occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture != nullptr) {
 		mat.aoTex = occlusionTexture;
 		mat.pushConstBlockMaterial.occlusionTextureSet = gltf_mat.occlusionTexture.texCoord;
 	}
 
 	// normal Texture
-	if (auto *normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture != nullptr) {
+	if (auto normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture != nullptr) {
 		mat.normalTex = normalTexture;
 		mat.pushConstBlockMaterial.normalTextureSet = gltf_mat.normalTexture.texCoord;
 	}
 
 	// emissive Texture
-	if (auto *emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture != nullptr) {
+	if (auto emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture != nullptr) {
 		mat.emissiveTex = emissiveTexture;
 		mat.pushConstBlockMaterial.emissiveTextureSet = gltf_mat.emissiveTexture.texCoord;
 	}
@@ -501,12 +504,16 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2])
 	};
 
-	//if (gltf_mat.alphaMode == "BLEND" || gltf_mat.alphaMode == "MASK")
-	//		SetMaterialBlendMode(mat, hg::BM_Alpha);
+	if (gltf_mat.alphaMode == "BLEND")
+		mat.pushConstBlockMaterial.alphaMask = 1;
 
-	//if (gltf_mat.doubleSided)
-	//		SetMaterialFaceCulling(mat, hg::FC_Disabled);
-	//
+	if (gltf_mat.alphaMode == "MASK") {
+		mat.pushConstBlockMaterial.alphaMask = 2;
+		mat.pushConstBlockMaterial.alphaMaskCutoff = gltf_mat.alphaCutoff;
+	}
+
+	if (gltf_mat.doubleSided)
+		mat.doubleSided = true;	
 
 	return std::move(mat);
 }
@@ -928,7 +935,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
 
 				matGLTF mat{
-					&textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"], &textureCache["WhiteTex"],
+					false, textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
 					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}}
 				};
 				prim.mat = mat;
@@ -937,7 +944,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			// create VULKAN need
 
 			createDescriptorSetLayout(prim.descriptorSetLayout);
-			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", prim.pipelineLayout, prim.graphicsPipeline, renderPass, msaaSamples, prim.descriptorSetLayout);
+			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", prim.pipelineLayout, prim.graphicsPipeline, renderPass, msaaSamples, prim.descriptorSetLayout, prim.mat.pushConstBlockMaterial.alphaMask);
 
 			createVertexBuffer(prim.vertices, prim.vertexBuffer, prim.vertexBufferMemory);
 			createIndexBuffer(prim.indices, prim.indexBuffer, prim.indexBufferMemory);
@@ -1160,13 +1167,18 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	std::string err;
 	std::string warn;
 
+	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
+	auto gltfRC = cmrcFS.open(scenePath);
+
 	// set our own save picture
 	loader.SetImageLoader(LoadImageDataEx, nullptr);
 	bool ret;
 	if (fs::path(scenePath).extension() == ".gltf")
-		ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
+	//	ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
+		ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), "");
 	else
-		ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
+	//	ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
+		ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char *>(gltfRC.cbegin()), gltfRC.size());
 	if (!ret) {
 		spdlog::error(fmt::format("failed to load {}: {}", scenePath, err));
 		return {};
@@ -1195,13 +1207,14 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// create white texture
 	{
 		std::string imageName("WhiteTex");
-		textureCache[imageName] = textureGLTF{};
-		auto &tex = textureCache[imageName];
 
-		tex.name = imageName;
-		createTextureImage("textures/WhiteTex.png", tex.textureImage, tex.textureImageMemory, tex.mipLevels);
-		tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-		createTextureSampler(tex.textureSampler, tex.mipLevels);
+		const std::shared_ptr<textureGLTF> tex(new textureGLTF);
+		tex->name = imageName;
+		auto texRC = cmrcFS.open("textures/WhiteTex.png");
+		createTextureImage(reinterpret_cast<const unsigned char *>(texRC.cbegin()), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels);
+		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+		createTextureSampler(tex->textureSampler, tex->mipLevels);
+		textureCache[imageName] = tex;
 	}
 
 	// Handle only one big scene

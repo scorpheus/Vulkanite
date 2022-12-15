@@ -12,10 +12,6 @@
 #include "vertex_config.h"
 #include "texture.h"
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-#include <unordered_map>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
@@ -24,14 +20,11 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
+#include <cmrc/cmrc.hpp>
+CMRC_DECLARE(gltf_rc);
 
 #include "camera.h"
 #include "loaderGltf.h"
-
-const std::string MODEL_PATH = "models/barrel.obj"; //"models/viking_room.obj";
-const std::string TEXTURE_PATH = "textures/Barrel_PropMaterial_baseColor.png"; //"textures/viking_room.png"
-//const std::string MODEL_GLTF_PATH = "D:/works_2/pbr/glTF-Sample-Models-master/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb";//"models/scene.gltf";
-const std::string MODEL_GLTF_PATH = "models/DamagedHelmet.glb";
 
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -58,18 +51,24 @@ std::vector<void*> uniformParamsBuffersMapped;
 textureGLTF envMap;
 
 static std::vector<char> readFile(const std::string &filename) {
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open()) {
-		throw std::runtime_error("failed to open file!");
-	}
-	size_t fileSize = (size_t)file.tellg();
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-	file.close();
-
+	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
+	auto fileRC = cmrcFS.open(filename);
+	std::vector<char> buffer;
+	buffer.insert(buffer.begin(), fileRC.begin(), fileRC.end());
 	return buffer;
+
+	//std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+	//if (!file.is_open()) {
+	//	throw std::runtime_error("failed to open file!");
+	//}
+	//size_t fileSize = (size_t)file.tellg();
+	//std::vector<char> buffer(fileSize);
+	//file.seekg(0);
+	//file.read(buffer.data(), fileSize);
+	//file.close();
+
+	//return buffer;
 }
 
 void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuffer, VkDeviceMemory &vertexBufferMemory) {
@@ -298,7 +297,8 @@ void createGraphicsPipeline(const std::string &vertexPath,
                             VkPipeline &graphicsPipeline,
                             const VkRenderPass &renderPass,
                             const VkSampleCountFlagBits &msaaSamples,
-                            const VkDescriptorSetLayout &descriptorSetLayout) {
+                            const VkDescriptorSetLayout &descriptorSetLayout,
+                            const float &alphaMask) {
 	// vertex/Frag shader
 	auto vertShaderCode = readFile(vertexPath);
 	auto fragShaderCode = readFile(fragPath);
@@ -374,11 +374,11 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
 	                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
+	colorBlendAttachment.blendEnable = alphaMask == 0 ? VK_FALSE : VK_TRUE;
 	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; // Optional
 	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
 	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
 	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
 	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
 
@@ -559,7 +559,10 @@ std::vector<objectGLTF> sceneGLTF;
 
 void loadSceneGLTF() {
 	envMap.name = "envMap";
-	createTextureImage("textures/autoshop_01_4k.hdr", envMap.textureImage, envMap.textureImageMemory, envMap.mipLevels);
+	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
+	auto envmapRC = cmrcFS.open(ENVMAP);
+
+	createTextureImage(reinterpret_cast<const unsigned char*>(envmapRC.cbegin()), envmapRC.size(), envMap.textureImage, envMap.textureImageMemory, envMap.mipLevels, true);
 	envMap.textureImageView = createTextureImageView(envMap.textureImage, envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
 	createTextureSampler(envMap.textureSampler, envMap.mipLevels);
 
@@ -567,12 +570,11 @@ void loadSceneGLTF() {
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		updateUniformParamsBuffer(i);
 	sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
-	//sceneGLTF = loadSceneGltf("models/NormalTangentTest.glb");
-	//sceneGLTF = loadSceneGltf("models/cube.gltf");
 }
 
-void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
-	if (obj.vertexBuffer) {
+void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
+	if (obj.vertexBuffer &&
+	    ((obj.mat.pushConstBlockMaterial.alphaMask == 0.f && !isRenderingAlphaPass) || (obj.mat.pushConstBlockMaterial.alphaMask != 0.f && isRenderingAlphaPass))) {
 		updateUniformBuffer(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
@@ -591,12 +593,16 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 	}
 
 	for (const auto &objChild : obj.children)
-		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world);
+		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world, isRenderingAlphaPass);
 }
 
 void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
+	// draw opaque
 	for (auto &obj : sceneGLTF)
-		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1));
+		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), false);
+	// draw alpha
+	for (auto &obj : sceneGLTF)
+		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), true);
 }
 
 void deleteModel() {

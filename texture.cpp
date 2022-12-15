@@ -98,14 +98,21 @@ void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int3
 	endSingleTimeCommands(commandBuffer);
 }
 
-void createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
+void createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels, bool useFloat) {
 	int texWidth, texHeight, texChannels;
-	void *pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
+	void *pixels;
+	if (useFloat)
+		pixels = stbi_loadf_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	else
+		pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
-	createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+	if (useFloat)
+		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
+	else
+		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 }
 
 void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {

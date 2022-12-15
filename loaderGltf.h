@@ -7,6 +7,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#include <memory>
 #include <glm/glm.hpp>
 
 #include "core_utils.h"
@@ -45,11 +46,12 @@ struct PushConstBlockMaterial {
 };
 
 struct matGLTF {
-	textureGLTF* albedoTex;
-	textureGLTF* metallicRoughnessTex;
-	textureGLTF* aoTex;
-	textureGLTF* normalTex;
-	textureGLTF* emissiveTex;
+	bool doubleSided; 
+	std::shared_ptr<textureGLTF> albedoTex;
+	std::shared_ptr<textureGLTF> metallicRoughnessTex;
+	std::shared_ptr<textureGLTF> aoTex;
+	std::shared_ptr<textureGLTF> normalTex;
+	std::shared_ptr<textureGLTF> emissiveTex;
 
 	PushConstBlockMaterial pushConstBlockMaterial;
 };
