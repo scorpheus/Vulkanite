@@ -4,6 +4,8 @@
 #include <string>
 #include <stdexcept>
 #include <cmath>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -99,26 +101,32 @@ void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int3
 
 void createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
 	int texWidth, texHeight, texChannels;
-	stbi_uc *pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	void *pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
-	createTextureImage(pixels, texWidth, texHeight, texChannels, textureImage, textureImageMemory, mipLevels);
+	createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 }
 
 void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
 	int texWidth, texHeight, texChannels;
-	stbi_uc *pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	void *pixels;
+	if(fs::path(texturePath).extension() == ".hdr")
+		pixels = stbi_loadf(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	else
+		pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
-	createTextureImage(pixels, texWidth, texHeight, texChannels, textureImage, textureImageMemory, mipLevels);
+	if (fs::path(texturePath).extension() == ".hdr")
+		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
+	else
+		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 }
 
-void createTextureImage(unsigned char * pixels, const int &texWidth, const int &texHeight, const int &texChannels, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
-	const VkDeviceSize imageSize = texWidth * texHeight * 4;
+void createTextureImage(void *pixels, const int &texWidth, const int &texHeight, const VkDeviceSize &imageSize, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels, VkFormat format) {
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -135,22 +143,22 @@ void createTextureImage(unsigned char * pixels, const int &texWidth, const int &
 
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1; 
 
-	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED,
+	transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED,
 	                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 
 	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth),
 	                  static_cast<uint32_t>(texHeight));
 
-	generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels);
+	generateMipmaps(textureImage, format, texWidth, texHeight, mipLevels);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mipLevels) { return createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels); }
+VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mipLevels, VkFormat format) { return createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels); }
 
 void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 	VkPhysicalDeviceProperties properties{};

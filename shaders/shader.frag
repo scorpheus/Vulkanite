@@ -490,20 +490,15 @@ vec3 pbrComputeDiffuse(vec3 normal, vec3 diffColor, float occlusion)
 // Entry point of the forward pipeline default uber shader (Phong and PBR)
 void main() {
 
-    //outColor = texture(colorMap, fragTexCoord) *  texture(metallicRoughnessMap, fragTexCoord) *  texture(normalMap, fragTexCoord) *  texture(aoMap, fragTexCoord) *  texture(emissiveMap, fragTexCoord) * material.baseColorFactor;
-
 	vec4 albedo_color = texture(colorMap, material.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
-	albedo_color.xyz = /*sRGB2linear(*/albedo_color.xyz/*)*/ * material.baseColorFactor.xyz;
+	//albedo_color.xyz = albedo_color.xyz * material.baseColorFactor.xyz;
+	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * material.baseColorFactor.xyz;
 	 
 	float occlusion = texture(aoMap, material.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
 	float metalness = texture(metallicRoughnessMap, material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * material.metallicFactor;
 	float roughness = texture(metallicRoughnessMap, material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * material.roughnessFactor;
 
 	
-//	outColor = vec4(metalness, metalness, metalness, 1);
-//outColor = albedo_color;
-//	return;
-
 	vec3 emissive = texture(emissiveMap, material.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * material.emissiveFactor;
 
 	//
@@ -555,7 +550,7 @@ void main() {
 	
 	float opacity = albedo_color.w;
 
-	outColor = vec4(color, opacity);
+	outColor = vec4(linear2sRGB(color), opacity);
 	//outColor = vec4(diffuse_color + specular_pbr, opacity);
 
 	

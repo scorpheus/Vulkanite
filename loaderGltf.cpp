@@ -38,7 +38,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 
 	tex.name = imageName;
 	createTextureImage(bytes, size, tex.textureImage, tex.textureImageMemory, tex.mipLevels);
-	tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels);
+	tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 	createTextureSampler(tex.textureSampler, tex.mipLevels);
 
 	return true;
@@ -1200,7 +1200,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 
 		tex.name = imageName;
 		createTextureImage("textures/WhiteTex.png", tex.textureImage, tex.textureImageMemory, tex.mipLevels);
-		tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels);
+		tex.textureImageView = createTextureImageView(tex.textureImage, tex.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex.textureSampler, tex.mipLevels);
 	}
 

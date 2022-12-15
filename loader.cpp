@@ -5,6 +5,8 @@
 #include <array>
 #include <stdexcept>
 #include <fstream>
+#include <chrono>
+#include <cstring>
 
 #include "core_utils.h"
 #include "vertex_config.h"
@@ -22,7 +24,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
-#include <chrono>
 
 #include "camera.h"
 #include "loaderGltf.h"
@@ -30,7 +31,7 @@
 const std::string MODEL_PATH = "models/barrel.obj"; //"models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/Barrel_PropMaterial_baseColor.png"; //"textures/viking_room.png"
 //const std::string MODEL_GLTF_PATH = "D:/works_2/pbr/glTF-Sample-Models-master/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb";//"models/scene.gltf";
-const std::string MODEL_GLTF_PATH =  "D:/works_2/pbr/glTF-Sample-Models-master/OrientationTest/glTF-Binary/OrientationTest.glb"; //"models/test.gltf";
+const std::string MODEL_GLTF_PATH =  "models/DamagedHelmet.glb";
 
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -511,7 +512,7 @@ void loadSceneObj() {
 		createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", obj.pipelineLayout, obj.graphicsPipeline, renderPass, msaaSamples, obj.descriptorSetLayout);
 
 		createTextureImage(TEXTURE_PATH, obj.textureImage, obj.textureImageMemory, obj.mipLevels);
-		obj.textureImageView = createTextureImageView(obj.textureImage, obj.mipLevels);
+		obj.textureImageView = createTextureImageView(obj.textureImage, obj.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(obj.textureSampler, obj.mipLevels);
 
 		loadObjectObj(MODEL_PATH, obj.vertices, obj.indices);
@@ -553,7 +554,7 @@ std::vector<objectGLTF> sceneGLTF;
 void loadSceneGLTF() {
 	envMap.name = "envMap";
 	createTextureImage("textures/autoshop_01_4k.hdr", envMap.textureImage, envMap.textureImageMemory, envMap.mipLevels);
-	envMap.textureImageView = createTextureImageView(envMap.textureImage, envMap.mipLevels);
+	envMap.textureImageView = createTextureImageView(envMap.textureImage, envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
 	createTextureSampler(envMap.textureSampler, envMap.mipLevels);
 
 	createUniformParamsBuffers();
