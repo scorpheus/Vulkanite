@@ -4,21 +4,23 @@
 #include "texture.h"
 #include "vertex_config.h"
 
+#include <nlohmann/json.hpp>
+
 #define TINYGLTF_IMPLEMENTATION
-//#define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_NO_INCLUDE_JSON
 #define TINYGLTF_USE_CPP14
-#include <nlohmann/json.hpp>
+#define TINYGLTF_ENABLE_DRACO
+#include <tiny_gltf.h>
+using namespace tinygltf;
 
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(gltf_rc);
+auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 
 #include "camera.h"
 #include "computeMikkTSpace.h"
 #include "loader.h"
-#include "tiny_gltf.h"
-using namespace tinygltf;
 
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>
@@ -28,6 +30,22 @@ namespace fs = std::filesystem;
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include <ktx.h>
+#include <ktxvulkan.h>
+
+#include <transcoder/basisu_transcoder.h>
+
+// callback for filesystem for gltf, using inside block
+bool FileExistsVulkanite(const std::string &abs_filename, void *) {
+	return cmrcFS.exists(abs_filename);
+}
+
+bool ReadWholeFileVulkanite(std::vector<unsigned char> *out, std::string *err, const std::string &filepath, void *) {
+	auto fileRC = cmrcFS.open(filepath);
+	out->insert(out->begin(), fileRC.begin(), fileRC.end());
+	return true;
+}
+
 std::map<std::string, std::shared_ptr<textureGLTF>> textureCache;
 
 bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
@@ -35,14 +53,94 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 
 	if (image->uri.empty())
 		imageName = image->name.empty() ? fmt::format("{}", image_idx) : image->name;
-	
+
 	const std::shared_ptr<textureGLTF> tex(new textureGLTF);
 	tex->name = imageName;
-	createTextureImage(bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels);
-	tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-	createTextureSampler(tex->textureSampler, tex->mipLevels);
+	tex->textureImage = nullptr;
 
-	textureCache[imageName] = tex;
+	if (image->mimeType == "image/ktx" || fs::path(imageName).extension() == ".ktx2") {
+		ktxTexture *texture = nullptr;
+		
+		if (ktxTexture_CreateFromMemory(bytes, size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture) == KTX_SUCCESS) {
+			// Retrieve information about the texture from fields in the ktxTexture
+			// such as:
+			ktx_uint32_t numLevels = texture->numLevels;
+			ktx_uint32_t baseWidth = texture->baseWidth;
+			ktx_bool_t isArray = texture->isArray;
+
+			// Retrieve a pointer to the image for a specific mip level, array layer
+			// & face or depth slice.
+			ktx_uint32_t level = 0;
+			ktx_uint32_t layer = 0;
+			ktx_uint32_t faceSlice = 0;
+			ktx_size_t offset;
+
+			if (ktxTexture_GetImageOffset(texture, level, layer, faceSlice, &offset) == KTX_SUCCESS) {
+				auto imageSize = ktxTexture_GetImageSize(texture, level);
+				auto yo1 = ktxTexture_GetVkFormat(texture);
+				ktx_uint8_t *imageKTX = ktxTexture_GetData(texture) + offset;
+
+				createTextureImage(imageKTX, texture->baseWidth, texture->baseHeight, imageSize, tex->textureImage, tex->textureImageMemory, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+			}
+		}
+
+		ktxTexture_Destroy(texture);
+	} /*else if (image->mimeType == "image/ktx2" || fs::path(imageName).extension() == ".ktx2") {
+		basist::basisu_transcoder_init();
+		basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
+		basist::basisu_transcoder transcoder(&sel_codebook);
+
+		//transcoder.start_transcoding(bytes, size);
+		//auto total_image = transcoder.get_total_images(bytes, size);
+		//basist::basisu_image_info image_info;
+		//uint32_t image_index = 0;
+		//transcoder.get_image_info(bytes, size, image_info, image_index);
+		//uint32_t level_index = 0;
+		//basist::basisu_image_level_info level_info;
+		//transcoder.get_image_level_info(bytes, size, level_info, image_index, level_index);
+		//transcoder.transcode_image_level();
+
+
+		if (transcoder.validate_header(bytes, size)) {
+			//spdlog::debug(fmt::format("Requested {} bytes for {}x{} image", size, cx, cx));
+			basist::basisu_image_info info;
+			if (transcoder.get_image_info(bytes, size, info, 0)) {
+				uint32_t level = 0;
+				uint32_t descW = 0, descH = 0, blocks;
+				for (uint32_t n = 0; n < info.m_total_levels; n++) {
+					if (transcoder.get_image_level_desc(bytes, size, 0, n, descW, descH, blocks)) {
+						spdlog::debug(fmt::format("mipmap level w: {}, h: {} (blocks: {})", descW, descH, blocks));
+						//	if (cx >= std::max(descW, descH)) {
+						level = n;
+						break;
+						//}
+					}
+				}
+				basist::basisu_file_info fileInfo;
+				transcoder.get_file_info(bytes, size, fileInfo);
+				if (transcoder.start_transcoding(bytes, size)) {
+					uint32_t sizeUncompressed = basist::basis_get_uncompressed_bytes_per_pixel(basist::transcoder_texture_format::cTFRGBA32) * descW * descH;
+					spdlog::debug(fmt::format("Started transcode ({}x{} @ {} bytes)", descW, descH, sizeUncompressed));
+					if (void *rgbBuf = malloc(sizeUncompressed)) {
+						// Note: the API expects total pixels here instead of blocks for cTFRGBA32
+						if (transcoder.transcode_image_level(bytes, size, 0, level, rgbBuf, descW * descH, basist::transcoder_texture_format::cTFRGBA32)) {
+							spdlog::debug("Decoded!!!!");
+							//		*phbmp = rgbToBitmap(static_cast<uint32_t*>(rgbBuf), descW, descH, fileInfo.m_y_flipped);
+						}
+						delete rgbBuf;
+					}
+				}
+			}
+		}
+	} */else
+		createTextureImage(bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels);
+
+	if (tex->textureImage != nullptr) {
+		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+		createTextureSampler(tex->textureSampler, tex->mipLevels);
+
+		textureCache[imageName] = tex;
+	}
 
 	return true;
 }
@@ -428,7 +526,13 @@ static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int 
 		return nullptr;
 
 	const auto &texture = model.textures[textureIndex];
-	const auto &image = model.images[texture.source];
+	auto textureSourceIndex = texture.source;
+	if (textureSourceIndex < 0) {
+		if (texture.extensions.find("KHR_texture_basisu") == texture.extensions.end())
+			return nullptr;
+		textureSourceIndex = texture.extensions.at("KHR_texture_basisu").GetNumberAsInt();
+	}
+	const auto &image = model.images[textureSourceIndex];
 
 	std::string imageName = image.uri;
 
@@ -513,7 +617,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	}
 
 	if (gltf_mat.doubleSided)
-		mat.doubleSided = true;	
+		mat.doubleSided = true;
 
 	return std::move(mat);
 }
@@ -944,7 +1048,8 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			// create VULKAN need
 
 			createDescriptorSetLayout(prim.descriptorSetLayout);
-			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", prim.pipelineLayout, prim.graphicsPipeline, renderPass, msaaSamples, prim.descriptorSetLayout, prim.mat.pushConstBlockMaterial.alphaMask);
+			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", prim.pipelineLayout, prim.graphicsPipeline, renderPass, msaaSamples, prim.descriptorSetLayout,
+			                       prim.mat.pushConstBlockMaterial.alphaMask);
 
 			createVertexBuffer(prim.vertices, prim.vertexBuffer, prim.vertexBufferMemory);
 			createIndexBuffer(prim.indices, prim.indexBuffer, prim.indexBufferMemory);
@@ -1166,19 +1271,20 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	TinyGLTF loader;
 	std::string err;
 	std::string warn;
-
-	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
+	
 	auto gltfRC = cmrcFS.open(scenePath);
 
 	// set our own save picture
 	loader.SetImageLoader(LoadImageDataEx, nullptr);
+	// callback for filesystem for gltf, using inside block
+	loader.SetFsCallbacks({&FileExistsVulkanite, &ExpandFilePath, &ReadWholeFileVulkanite, &WriteWholeFile});
 	bool ret;
 	if (fs::path(scenePath).extension() == ".gltf")
-	//	ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
-		ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), "");
+		//	ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
+		ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), fs::path(scenePath).parent_path().string());
 	else
-	//	ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
-		ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char *>(gltfRC.cbegin()), gltfRC.size());
+		//	ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
+		ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char*>(gltfRC.cbegin()), gltfRC.size());
 	if (!ret) {
 		spdlog::error(fmt::format("failed to load {}: {}", scenePath, err));
 		return {};
@@ -1211,7 +1317,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 		const std::shared_ptr<textureGLTF> tex(new textureGLTF);
 		tex->name = imageName;
 		auto texRC = cmrcFS.open("textures/WhiteTex.png");
-		createTextureImage(reinterpret_cast<const unsigned char *>(texRC.cbegin()), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels);
+		createTextureImage(reinterpret_cast<const unsigned char*>(texRC.cbegin()), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels);
 		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex->textureSampler, tex->mipLevels);
 		textureCache[imageName] = tex;

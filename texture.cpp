@@ -113,6 +113,8 @@ void createTextureImage(const unsigned char *bytes, int size, VkImage &textureIm
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
 	else
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+
+	stbi_image_free(pixels);
 }
 
 void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
@@ -130,6 +132,8 @@ void createTextureImage(const std::string &texturePath, VkImage &textureImage, V
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
 	else
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+
+	stbi_image_free(pixels);
 }
 
 void createTextureImage(void *pixels,
@@ -150,8 +154,6 @@ void createTextureImage(void *pixels,
 	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
 	vkUnmapMemory(device, stagingBufferMemory);
-
-	stbi_image_free(pixels);
 
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 

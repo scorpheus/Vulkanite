@@ -1,12 +1,12 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 struct matGLTF;
 struct Vertex;
-void loadSceneObj();
 void loadSceneGLTF();
-void drawModelObj(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 void deleteModel();
 

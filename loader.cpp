@@ -1,4 +1,4 @@
-#include "loaderObj.h"
+#include "loader.h"
 
 #include <string>
 #include <vector>
@@ -493,66 +493,19 @@ void updateUniformParamsBuffer(uint32_t currentFrame) {
 	uboParams.envRot = 0.f;
 	uboParams.exposure = 1.f;
 	uboParams.SHRed = {
-		-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765,
-		0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606,
-		1.7490483522415161
+		-0.6569198369979858, -0.05074704438447952, 0.11712795495986938, 0.5405354499816895, -0.05074704438447952, 0.6569198369979858, -0.1142701804637909, -0.45706015825271606,
+		0.11712795495986938, -0.1142701804637909, -1.8876700401306152, 0.3333941698074341, 0.5405354499816895, -0.45706015825271606, 0.3333941698074341, 4.457942962646484
 	};
 	uboParams.SHGreen = {
-		-0.026353614404797554, 0.0420733205974102, -0.11874748021364212, -0.004994439892470837, 0.0420733205974102, 0.026353614404797554, 0.03807618096470833, 0.014554289169609547,
-		-0.11874748021364212, 0.03807618096470833, 0.15525034070014954, 0.5655900835990906, -0.004994439892470837, 0.014554289169609547, 0.5655900835990906, 1.8003654479980469
+		-0.5982603430747986, 0.0008933552308008075, 0.11303829401731491, 0.5236333012580872, 0.0008933552308008075, 0.5982603430747986, -0.09598314762115479, -0.3767010271549225,
+		0.11303829401731491, -0.09598314762115479, -1.8332494497299194, 0.3257785141468048, 0.5236333012580872, -0.3767010271549225, 0.3257785141468048, 4.3789801597595215
 	};
 	uboParams.SHBlue = {
-		-0.030493533238768578, 0.027004197239875793, -0.11254461854696274, -0.00038127542939037085, 0.027004197239875793, 0.030493533238768578, 0.03437162563204765,
-		0.00361999380402267, -0.11254461854696274, 0.03437162563204765, 0.14184193313121796, 0.5760947465896606, -0.00038127542939037085, 0.00361999380402267, 0.5760947465896606,
-		1.7490483522415161
+		-0.6434987187385559, -0.07664437592029572, 0.10949002951383591, 0.5047624707221985, -0.07664437592029572, 0.6434987187385559, -0.11785311996936798, -0.4755648374557495,
+		0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623
 	};
 
 	memcpy(uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof(uboParams));
-}
-
-std::array<objectGLTF, 2> scene;
-
-void loadSceneObj() {
-	int i = 0;
-	/*for (auto &obj : scene) {
-		createDescriptorSetLayout(obj.descriptorSetLayout);
-		createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", obj.pipelineLayout, obj.graphicsPipeline, renderPass, msaaSamples, obj.descriptorSetLayout);
-
-		createTextureImage(TEXTURE_PATH, obj.textureImage, obj.textureImageMemory, obj.mipLevels);
-		obj.textureImageView = createTextureImageView(obj.textureImage, obj.mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-		createTextureSampler(obj.textureSampler, obj.mipLevels);
-
-		loadObjectObj(MODEL_PATH, obj.vertices, obj.indices);
-
-		createVertexBuffer(obj.vertices, obj.vertexBuffer, obj.vertexBufferMemory);
-		createIndexBuffer(obj.indices, obj.indexBuffer, obj.indexBufferMemory);
-
-		createUniformBuffers(obj.uniformBuffers, obj.uniformBuffersMemory, obj.uniformBuffersMapped);
-
-		createDescriptorPool(obj.descriptorPool);
-		createDescriptorSets(obj.descriptorSets, obj.uniformBuffers, obj.textureImageView, obj.textureSampler, obj.descriptorSetLayout, obj.descriptorPool);
-
-		obj.world = glm::translate(glm::mat4(1.f), glm::vec3(i * 2, 0, 0));
-		++i;
-	}*/
-}
-
-void drawModelObj(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
-	for (auto &obj : scene) {
-		updateUniformBuffer(currentFrame, obj, obj.world);
-
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
-
-		VkBuffer vertexBuffers[] = {obj.vertexBuffer};
-		VkDeviceSize offsets[] = {0};
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-		vkCmdBindIndexBuffer(commandBuffer, obj.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0, nullptr);
-
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(obj.indices.size()), 1, 0, 0, 0);
-	}
 }
 
 std::vector<objectGLTF> sceneGLTF;
@@ -606,25 +559,34 @@ void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 }
 
 void deleteModel() {
-	return;
-	for (auto obj : scene) {
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			if (i < obj.uniformBuffers.size())
-				vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
-			if (i < obj.uniformBuffersMemory.size())
-				vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
+	std::function<void(objectGLTF &)> f;
+
+	f = [=](objectGLTF &obj) {
+		if (obj.vertexBuffer) {
+			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+				if (i < obj.uniformBuffers.size())
+					vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
+				if (i < obj.uniformBuffersMemory.size())
+					vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
+			}
+
+			vkDestroyBuffer(device, obj.indexBuffer, nullptr);
+			vkFreeMemory(device, obj.indexBufferMemory, nullptr);
+
+			vkDestroyBuffer(device, obj.vertexBuffer, nullptr);
+			vkFreeMemory(device, obj.vertexBufferMemory, nullptr);
+
+			vkDestroyDescriptorPool(device, obj.descriptorPool, nullptr);
+
+			vkDestroyDescriptorSetLayout(device, obj.descriptorSetLayout, nullptr);
+			vkDestroyPipeline(device, obj.graphicsPipeline, nullptr);
+			vkDestroyPipelineLayout(device, obj.pipelineLayout, nullptr);
 		}
+		for (const auto &objChild : obj.children)
+			f(obj);
+	};
 
-		vkDestroyBuffer(device, obj.indexBuffer, nullptr);
-		vkFreeMemory(device, obj.indexBufferMemory, nullptr);
-
-		vkDestroyBuffer(device, obj.vertexBuffer, nullptr);
-		vkFreeMemory(device, obj.vertexBufferMemory, nullptr);
-
-		vkDestroyDescriptorPool(device, obj.descriptorPool, nullptr);
-
-		vkDestroyDescriptorSetLayout(device, obj.descriptorSetLayout, nullptr);
-		vkDestroyPipeline(device, obj.graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(device, obj.pipelineLayout, nullptr);
+	for (auto o : sceneGLTF) {
+		f(o);
 	}
 }

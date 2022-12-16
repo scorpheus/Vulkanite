@@ -1,0 +1,6 @@
+add_executable(spherical_harmonics_extractor spherical_harmonics_extractor.cpp)
+
+target_include_directories(spherical_harmonics_extractor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(spherical_harmonics_extractor PROPERTIES FOLDER "tools")
+
+install(TARGETS spherical_harmonics_extractor LIBRARY DESTINATION spherical_harmonics_extractor RUNTIME DESTINATION spherical_harmonics_extractor COMPONENT spherical_harmonics_extractor)
