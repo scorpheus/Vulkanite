@@ -23,9 +23,16 @@
 
 #include "camera.h"
 #include "loader.h"
+#include "raytrace.h"
 
 const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+													VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+													VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+													VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+													VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+													VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+													VK_KHR_SPIRV_1_4_EXTENSION_NAME};
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
@@ -81,7 +88,6 @@ private:
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
 	std::vector<VkImage> swapChainImages;
-	VkFormat swapChainImageFormat;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -431,11 +437,28 @@ private:
 		createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		// Enable features required for ray tracing using feature chaining via pNext
+		VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
+		enabledBufferDeviceAddresFeatures.bufferDeviceAddress = VK_TRUE;
+
+		VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+		enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
+		enabledRayTracingPipelineFeatures.pNext = &enabledBufferDeviceAddresFeatures;
+
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+		enabledAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
+		enabledAccelerationStructureFeatures.pNext = &enabledRayTracingPipelineFeatures;
+		
+		VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+		physicalDeviceFeatures2.features = deviceFeatures;
+		physicalDeviceFeatures2.pNext = &enabledAccelerationStructureFeatures;
+		createInfo.pEnabledFeatures = nullptr;
+		createInfo.pNext = &physicalDeviceFeatures2;
 
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
+		
 		if (enableValidationLayers) {
 			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 			createInfo.ppEnabledLayerNames = validationLayers.data();
@@ -448,6 +471,14 @@ private:
 		}
 		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
 		vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+				
+		// raytrace
+		VkPhysicalDeviceProperties2 deviceProperties2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+		deviceProperties2.pNext = &rayTracingPipelineProperties;
+		vkGetPhysicalDeviceProperties2(physicalDevice, &deviceProperties2);
+		VkPhysicalDeviceFeatures2 deviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+		deviceFeatures2.pNext = &accelerationStructureFeatures;
+		vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);		
 	}
 
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
@@ -832,6 +863,9 @@ private:
 		drawSceneGLTF(commandBuffer, currentFrame);
 
 		vkCmdEndRenderPass(commandBuffer);
+
+		// raytrace
+		vulkanite_raytrace::buildCommandBuffers(commandBuffer);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");

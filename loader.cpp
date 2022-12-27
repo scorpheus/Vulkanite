@@ -4,7 +4,6 @@
 #include <vector>
 #include <array>
 #include <stdexcept>
-#include <fstream>
 #include <chrono>
 #include <cstring>
 
@@ -21,6 +20,8 @@
 #include <glm/gtx/hash.hpp>
 
 #include <cmrc/cmrc.hpp>
+
+#include "raytrace.h"
 CMRC_DECLARE(gltf_rc);
 
 #include "camera.h"
@@ -80,14 +81,17 @@ void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuf
 	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
 	             stagingBufferMemory);
 
+
 	// fill the vertex buffer
 	void *data;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, vertices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-	             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+	createBuffer(bufferSize,
+	             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+	             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	             vertexBuffer, vertexBufferMemory);
 
 	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
@@ -109,7 +113,9 @@ void createIndexBuffer(const std::vector<uint32_t> &indices, VkBuffer &indexBuff
 	memcpy(data, indices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+	createBuffer(bufferSize,
+	             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+	             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 	             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 
 	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
@@ -291,6 +297,19 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 	}
 }
 
+VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage) {
+	const auto shaderCode = readFile(fileName);
+
+	VkShaderModule shaderModule = createShaderModule(shaderCode);
+
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = stage;
+	vertShaderStageInfo.module = shaderModule;
+	vertShaderStageInfo.pName = "main";
+	return vertShaderStageInfo;
+}
+
 void createGraphicsPipeline(const std::string &vertexPath,
                             const std::string &fragPath,
                             VkPipelineLayout &pipelineLayout,
@@ -299,26 +318,8 @@ void createGraphicsPipeline(const std::string &vertexPath,
                             const VkSampleCountFlagBits &msaaSamples,
                             const VkDescriptorSetLayout &descriptorSetLayout,
                             const float &alphaMask) {
-	// vertex/Frag shader
-	auto vertShaderCode = readFile(vertexPath);
-	auto fragShaderCode = readFile(fragPath);
-
-	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
-
-	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShaderModule;
-	vertShaderStageInfo.pName = "main";
-
-	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShaderModule;
-	fragShaderStageInfo.pName = "main";
-
-	VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+	// vertex/Frag shader	
+	VkPipelineShaderStageCreateInfo shaderStages[] = {loadShader(vertexPath, VK_SHADER_STAGE_VERTEX_BIT), loadShader(fragPath, VK_SHADER_STAGE_FRAGMENT_BIT)};
 
 	// dynamic states
 	std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
@@ -439,8 +440,8 @@ void createGraphicsPipeline(const std::string &vertexPath,
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
 
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(device, shaderStages[0].module, nullptr);
+	vkDestroyShaderModule(device, shaderStages[1].module, nullptr);
 }
 
 void createUniformBuffers(
@@ -510,6 +511,7 @@ void updateUniformParamsBuffer(uint32_t currentFrame) {
 
 std::vector<objectGLTF> sceneGLTF;
 
+
 void loadSceneGLTF() {
 	envMap.name = "envMap";
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
@@ -523,6 +525,33 @@ void loadSceneGLTF() {
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		updateUniformParamsBuffer(i);
 	sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
+
+
+	// setup raytrace
+	vulkanite_raytrace::InitRaytrace();
+	vulkanite_raytrace::createBottomLevelAccelerationStructure(sceneGLTF);
+	vulkanite_raytrace::createTopLevelAccelerationStructure();
+
+	vulkanite_raytrace::createStorageImage(swapChainImageFormat, {swapChainExtent.width, swapChainExtent.height, 1});
+	vulkanite_raytrace::createUniformBuffer();
+	vulkanite_raytrace::createRayTracingPipeline();
+	vulkanite_raytrace::createShaderBindingTables();
+	vulkanite_raytrace::createDescriptorSets(sceneGLTF);
+	
+	//std::function<void(const objectGLTF &)> f;
+
+	//f = [&](const objectGLTF &obj) {
+	//	if (obj.vertexBuffer) {
+	//		auto blas = objectToVkGeometryKHR(obj);
+	//		// We could add more geometry in each BLAS, but we add only one for now
+	//		allBlas.emplace_back(blas);
+	//	}
+	//	for (const auto &objChild : obj.children)
+	//		f(obj);
+	//};
+	//for (const auto &o : sceneGLTF)
+	//	f(o);
+	
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {

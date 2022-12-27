@@ -24,7 +24,6 @@ auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>
-#include <fstream>
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -58,9 +57,9 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 	tex->name = imageName;
 	tex->textureImage = nullptr;
 
-	if (image->mimeType == "image/ktx" || fs::path(imageName).extension() == ".ktx2") {
-		ktxTexture *texture = nullptr;
-		
+	if (image->mimeType == "image/ktx2" || fs::path(imageName).extension() == ".ktx2") {
+		// test load ktx from khronos ktx
+		ktxTexture *texture = nullptr;		
 		if (ktxTexture_CreateFromMemory(bytes, size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture) == KTX_SUCCESS) {
 			// Retrieve information about the texture from fields in the ktxTexture
 			// such as:
@@ -80,59 +79,59 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 				auto yo1 = ktxTexture_GetVkFormat(texture);
 				ktx_uint8_t *imageKTX = ktxTexture_GetData(texture) + offset;
 
-				createTextureImage(imageKTX, texture->baseWidth, texture->baseHeight, imageSize, tex->textureImage, tex->textureImageMemory, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+				createTextureImage(imageKTX, texture->baseWidth, texture->baseHeight, imageSize, tex->textureImage, tex->textureImageMemory, tex->mipLevels,
+				                   VK_FORMAT_R8G8B8A8_UNORM);
 			}
-		}
+			ktxTexture_Destroy(texture);
+		} else { // if not working, try from basisu
+			basist::basisu_transcoder_init();
+			basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
+			basist::basisu_transcoder transcoder(&sel_codebook);
 
-		ktxTexture_Destroy(texture);
-	} /*else if (image->mimeType == "image/ktx2" || fs::path(imageName).extension() == ".ktx2") {
-		basist::basisu_transcoder_init();
-		basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
-		basist::basisu_transcoder transcoder(&sel_codebook);
-
-		//transcoder.start_transcoding(bytes, size);
-		//auto total_image = transcoder.get_total_images(bytes, size);
-		//basist::basisu_image_info image_info;
-		//uint32_t image_index = 0;
-		//transcoder.get_image_info(bytes, size, image_info, image_index);
-		//uint32_t level_index = 0;
-		//basist::basisu_image_level_info level_info;
-		//transcoder.get_image_level_info(bytes, size, level_info, image_index, level_index);
-		//transcoder.transcode_image_level();
+			//transcoder.start_transcoding(bytes, size);
+			//auto total_image = transcoder.get_total_images(bytes, size);
+			//basist::basisu_image_info image_info;
+			//uint32_t image_index = 0;
+			//transcoder.get_image_info(bytes, size, image_info, image_index);
+			//uint32_t level_index = 0;
+			//basist::basisu_image_level_info level_info;
+			//transcoder.get_image_level_info(bytes, size, level_info, image_index, level_index);
+			//transcoder.transcode_image_level();
 
 
-		if (transcoder.validate_header(bytes, size)) {
-			//spdlog::debug(fmt::format("Requested {} bytes for {}x{} image", size, cx, cx));
-			basist::basisu_image_info info;
-			if (transcoder.get_image_info(bytes, size, info, 0)) {
-				uint32_t level = 0;
-				uint32_t descW = 0, descH = 0, blocks;
-				for (uint32_t n = 0; n < info.m_total_levels; n++) {
-					if (transcoder.get_image_level_desc(bytes, size, 0, n, descW, descH, blocks)) {
-						spdlog::debug(fmt::format("mipmap level w: {}, h: {} (blocks: {})", descW, descH, blocks));
-						//	if (cx >= std::max(descW, descH)) {
-						level = n;
-						break;
-						//}
-					}
-				}
-				basist::basisu_file_info fileInfo;
-				transcoder.get_file_info(bytes, size, fileInfo);
-				if (transcoder.start_transcoding(bytes, size)) {
-					uint32_t sizeUncompressed = basist::basis_get_uncompressed_bytes_per_pixel(basist::transcoder_texture_format::cTFRGBA32) * descW * descH;
-					spdlog::debug(fmt::format("Started transcode ({}x{} @ {} bytes)", descW, descH, sizeUncompressed));
-					if (void *rgbBuf = malloc(sizeUncompressed)) {
-						// Note: the API expects total pixels here instead of blocks for cTFRGBA32
-						if (transcoder.transcode_image_level(bytes, size, 0, level, rgbBuf, descW * descH, basist::transcoder_texture_format::cTFRGBA32)) {
-							spdlog::debug("Decoded!!!!");
-							//		*phbmp = rgbToBitmap(static_cast<uint32_t*>(rgbBuf), descW, descH, fileInfo.m_y_flipped);
+			if (transcoder.validate_header(bytes, size)) {
+				//spdlog::debug(fmt::format("Requested {} bytes for {}x{} image", size, cx, cx));
+				basist::basisu_image_info info;
+				if (transcoder.get_image_info(bytes, size, info, 0)) {
+					uint32_t level = 0;
+					uint32_t descW = 0, descH = 0, blocks;
+					for (uint32_t n = 0; n < info.m_total_levels; n++) {
+						if (transcoder.get_image_level_desc(bytes, size, 0, n, descW, descH, blocks)) {
+							spdlog::debug(fmt::format("mipmap level w: {}, h: {} (blocks: {})", descW, descH, blocks));
+							//	if (cx >= std::max(descW, descH)) {
+							level = n;
+							break;
+							//}
 						}
-						delete rgbBuf;
+					}
+					basist::basisu_file_info fileInfo;
+					transcoder.get_file_info(bytes, size, fileInfo);
+					if (transcoder.start_transcoding(bytes, size)) {
+						uint32_t sizeUncompressed = basist::basis_get_uncompressed_bytes_per_pixel(basist::transcoder_texture_format::cTFRGBA32) * descW * descH;
+						spdlog::debug(fmt::format("Started transcode ({}x{} @ {} bytes)", descW, descH, sizeUncompressed));
+						if (void *rgbBuf = malloc(sizeUncompressed)) {
+							// Note: the API expects total pixels here instead of blocks for cTFRGBA32
+							if (transcoder.transcode_image_level(bytes, size, 0, level, rgbBuf, descW * descH, basist::transcoder_texture_format::cTFRGBA32)) {
+								spdlog::debug("Decoded!!!!");
+								//		*phbmp = rgbToBitmap(static_cast<uint32_t*>(rgbBuf), descW, descH, fileInfo.m_y_flipped);
+							}
+							delete rgbBuf;
+						}
 					}
 				}
 			}
 		}
-	} */else
+	} else
 		createTextureImage(bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels);
 
 	if (tex->textureImage != nullptr) {
@@ -158,7 +157,9 @@ static std::string Indent(const int indent) {
 
 /// Adapts an array of bytes to an array of T. Will advace of byte_stride each
 /// elements.
-template <typename T>
+template
+<
+	typename T>
 struct arrayAdapter {
 	/// Pointer to the bytes
 	const unsigned char *dataPtr;
@@ -206,7 +207,10 @@ struct floatArrayBase {
 };
 
 /// An array that loads interger types, returns them as byte
-template <class T>
+template
+<
+	class T
+>
 struct byteArray : public byteArrayBase {
 	arrayAdapter<T> adapter;
 
@@ -219,7 +223,10 @@ struct byteArray : public byteArrayBase {
 };
 
 /// An array that loads interger types, returns them as int
-template <class T>
+template
+<
+	class T
+>
 struct intArray : public intArrayBase {
 	arrayAdapter<T> adapter;
 
@@ -231,7 +238,10 @@ struct intArray : public intArrayBase {
 	size_t size() const override { return adapter.elemCount; }
 };
 
-template <class T>
+template
+<
+	class T
+>
 struct floatArray : public floatArrayBase {
 	arrayAdapter<T> adapter;
 
@@ -1271,7 +1281,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	TinyGLTF loader;
 	std::string err;
 	std::string warn;
-	
+
 	auto gltfRC = cmrcFS.open(scenePath);
 
 	// set our own save picture

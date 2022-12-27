@@ -10,6 +10,7 @@ void loadSceneGLTF();
 void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 void deleteModel();
 
+VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage);
 
 void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout);
 void createGraphicsPipeline(const std::string &vertexPath,

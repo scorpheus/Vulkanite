@@ -75,20 +75,7 @@ find_package(libbasisu REQUIRED)
 link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
 
 # create Vulkanite project
-set(SOURCE_FILES main.cpp
-				vertex_config.h
-				loader.cpp
-				loader.h
-				loaderGltf.cpp
-				loaderGltf.h
-				texture.cpp
-				texture.h
-				camera.cpp
-				camera.h
-				core_utils.cpp
-				core_utils.h
-				computeMikkTSpace.cpp
-				computeMikkTSpace.h)
+file(GLOB SOURCE_FILES "*.h" "*.cpp")
 add_executable(Vulkanite ${SOURCE_FILES})
 
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/gli)
@@ -114,7 +101,7 @@ include(cmake/utilities.cmake)
 compile_glsl_directory(
 	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
 	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
-	VULKAN_TARGET "vulkan1.0"
+	VULKAN_TARGET "vulkan1.3"
 	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
 	)
 target_sources(Vulkanite PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
@@ -128,11 +115,15 @@ set(ENVMAP textures/limpopo_golf_course_1k.hdr)
 #set(MODEL_GLTF_PATH models/abeautifulgame_ktx.glb)
 set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #file(GLOB model_RC "models/glTF-KTX-BasisU/*.*")
+#set(MODEL_GLTF_PATH models/Box.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}
 	${MODEL_GLTF_PATH}	
 	textures/WhiteTex.png
+	spv/closesthit.rchit.spv
+	spv/miss.rmiss.spv
+	spv/raygen.rgen.spv
 	spv/shader.frag.spv
 	spv/shader.vert.spv
 )

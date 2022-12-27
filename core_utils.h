@@ -1,7 +1,28 @@
 #pragma once
 
+#include <stdexcept>
 #include <vulkan/vulkan.h>
 
+std::string errorString(VkResult errorCode);
+
+#define VK_CHECK_RESULT_S(f, s)			\
+{										\
+	VkResult res = (f);					\
+	if (res != VK_SUCCESS)				\
+		throw std::runtime_error(s);	\
+}
+
+#define VK_CHECK_RESULT(f)				\
+{										\
+	VkResult res = (f);					\
+	if (res != VK_SUCCESS)				\
+		throw std::runtime_error( fmt::format("Fatal : VkResult is \"{}\" in {} at line {}\n", errorString(res), __FILE__, __LINE__));	\
+}
+
+
+namespace vks {
+struct Buffer;
+}
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -16,10 +37,15 @@ extern VkQueue graphicsQueue;
 extern VkQueue presentQueue;
 extern VkCommandPool commandPool;
 
+extern VkFormat swapChainImageFormat;
+
 extern VkRenderPass renderPass;
 extern VkSampleCountFlagBits msaaSamples;
 
 extern VkExtent2D swapChainExtent;
+
+extern VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures;
+extern VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties;
 
 
 uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -29,6 +55,7 @@ void createBuffer(VkDeviceSize size,
                   VkMemoryPropertyFlags properties,
                   VkBuffer &buffer,
                   VkDeviceMemory &bufferMemory);
+VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data = nullptr);
 void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 VkCommandBuffer beginSingleTimeCommands();

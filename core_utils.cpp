@@ -2,6 +2,9 @@
 
 #include <chrono>
 #include <stdexcept>
+#include <fmt/core.h>
+
+#include "VulkanBuffer.h"
 
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
@@ -11,9 +14,47 @@ VkQueue graphicsQueue;
 VkQueue presentQueue;
 VkCommandPool commandPool;
 VkExtent2D swapChainExtent;
+VkFormat swapChainImageFormat;
+
+VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 
 VkRenderPass renderPass;
 VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
+std::string errorString(VkResult errorCode) {
+	switch (errorCode) {
+#define STR(r)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         \
+	case VK_##r:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \
+		return #r
+		STR(NOT_READY);
+		STR(TIMEOUT);
+		STR(EVENT_SET);
+		STR(EVENT_RESET);
+		STR(INCOMPLETE);
+		STR(ERROR_OUT_OF_HOST_MEMORY);
+		STR(ERROR_OUT_OF_DEVICE_MEMORY);
+		STR(ERROR_INITIALIZATION_FAILED);
+		STR(ERROR_DEVICE_LOST);
+		STR(ERROR_MEMORY_MAP_FAILED);
+		STR(ERROR_LAYER_NOT_PRESENT);
+		STR(ERROR_EXTENSION_NOT_PRESENT);
+		STR(ERROR_FEATURE_NOT_PRESENT);
+		STR(ERROR_INCOMPATIBLE_DRIVER);
+		STR(ERROR_TOO_MANY_OBJECTS);
+		STR(ERROR_FORMAT_NOT_SUPPORTED);
+		STR(ERROR_SURFACE_LOST_KHR);
+		STR(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+		STR(SUBOPTIMAL_KHR);
+		STR(ERROR_OUT_OF_DATE_KHR);
+		STR(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+		STR(ERROR_VALIDATION_FAILED_EXT);
+		STR(ERROR_INVALID_SHADER_NV);
+#undef STR
+		default:
+			return "UNKNOWN_ERROR";
+	}
+}
 
 uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -24,7 +65,6 @@ uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 			return i;
 		}
 	}
-
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
@@ -51,11 +91,77 @@ void createBuffer(VkDeviceSize size,
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
+	// If the buffer has VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT set we also need to enable the appropriate flag during allocation
+	VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
+	if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+		allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
+		allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
+		allocInfo.pNext = &allocFlagsInfo;
+	}
+
 	if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate buffer memory!");
 	}
 
 	vkBindBufferMemory(device, buffer, bufferMemory, 0);
+}
+
+/**
+ * Create a buffer on the device
+ *
+ * @param usageFlags Usage flag bit mask for the buffer (i.e. index, vertex, uniform buffer)
+ * @param memoryPropertyFlags Memory properties for this buffer (i.e. device local, host visible, coherent)
+ * @param buffer Pointer to a vk::Vulkan buffer object
+ * @param size Size of the buffer in bytes
+ * @param data Pointer to the data that should be copied to the buffer after creation (optional, if not set, no data is copied over)
+ *
+ * @return VK_SUCCESS if buffer handle and memory have been created and (optionally passed) data has been copied
+ */
+VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data) {
+	buffer->device = device;
+
+	// Create the buffer handle
+	VkBufferCreateInfo bufferCreateInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	bufferCreateInfo.usage = usageFlags;
+	bufferCreateInfo.size = size;
+	VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &buffer->buffer));
+
+	// Create the memory backing up the buffer handle
+	VkMemoryRequirements memReqs;
+	VkMemoryAllocateInfo memAlloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	vkGetBufferMemoryRequirements(device, buffer->buffer, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	// Find a memory type index that fits the properties of the buffer
+	memAlloc.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
+	// If the buffer has VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT set we also need to enable the appropriate flag during allocation
+	VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
+	if (usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+		allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
+		allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
+		memAlloc.pNext = &allocFlagsInfo;
+	}
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &buffer->memory));
+
+	buffer->alignment = memReqs.alignment;
+	buffer->size = size;
+	buffer->usageFlags = usageFlags;
+	buffer->memoryPropertyFlags = memoryPropertyFlags;
+
+	// If a pointer to the buffer data has been passed, map the buffer and copy over the data
+	if (data != nullptr) {
+		VK_CHECK_RESULT(buffer->map());
+		memcpy(buffer->mapped, data, size);
+		if ((memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0)
+			buffer->flush();
+
+		buffer->unmap();
+	}
+
+	// Initialize a default descriptor that covers the whole buffer size
+	buffer->setupDescriptor();
+
+	// Attach the memory to the buffer object
+	return buffer->bind();
 }
 
 void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -199,9 +305,9 @@ void transitionImageLayout(VkImage image,
 	} else {
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	}
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
+	
+	VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
 	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
 		barrier.srcAccessMask = 0;
@@ -224,6 +330,8 @@ void transitionImageLayout(VkImage image,
 
 		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
+		barrier.srcAccessMask = 0;
 	} else {
 		throw std::invalid_argument("unsupported layout transition!");
 	}
