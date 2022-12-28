@@ -38,24 +38,30 @@ void main()
 	float tmin = 0.001;
 	float tmax = 10000.0;
 
-	vec3 color = vec3(0.0);
+	vec3 color = vec3(1.0);
 
 	for (int i = 0; i < MAX_RECURSION; i++) {
 		traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 		vec3 hitColor = rayPayload.color;
 
+		// background hit
 		if (rayPayload.distance < 0.0f) {
-			color += hitColor;
+			color = hitColor;
 			break;
-		} else if (rayPayload.reflector == 1.0f) {
+		} //else if (rayPayload.reflector == 1.0f) {
+//			const vec4 hitPos = origin + direction * rayPayload.distance;
+//			origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
+//			direction.xyz = reflect(direction.xyz, rayPayload.normal);
+//		} else		{
+//			color += hitColor;
+//			break;
+//		}
+//
+		
+			color *= hitColor;
 			const vec4 hitPos = origin + direction * rayPayload.distance;
 			origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
 			direction.xyz = reflect(direction.xyz, rayPayload.normal);
-		} else {
-			color += hitColor;
-			break;
-		}
-
 	}
 
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0.0));

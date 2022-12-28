@@ -74,9 +74,23 @@ find_package(libbasisu REQUIRED)
 
 link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
 
+# shaders
+include(cmake/utilities.cmake)
+#--------------------------------------------------------------------------------------------------
+# GLSL to SPIR-V custom build
+compile_glsl_directory(
+	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
+	VULKAN_TARGET "vulkan1.3"
+	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
+	)
+
+source_group("Shader Sources"  FILES ${GLSL_SOURCES})
+source_group("Shader Headers"  FILES ${GLSL_HEADERS})
+
 # create Vulkanite project
 file(GLOB SOURCE_FILES "*.h" "*.cpp")
-add_executable(Vulkanite ${SOURCE_FILES})
+add_executable(Vulkanite ${SOURCE_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
 
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/gli)
 
@@ -94,19 +108,6 @@ if(WIN32)
 	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
 endif()
 
-# shaders
-include(cmake/utilities.cmake)
-#--------------------------------------------------------------------------------------------------
-# GLSL to SPIR-V custom build
-compile_glsl_directory(
-	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
-	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
-	VULKAN_TARGET "vulkan1.3"
-	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
-	)
-target_sources(Vulkanite PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
-source_group("Shader Sources"  FILES ${GLSL_SOURCES})
-source_group("Shader Headers"  FILES ${GLSL_HEADERS})
 
 # ressources include in exe
 include(cmake/CMakeRC.cmake)
@@ -115,7 +116,8 @@ set(ENVMAP textures/limpopo_golf_course_1k.hdr)
 #set(MODEL_GLTF_PATH models/abeautifulgame_ktx.glb)
 set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #file(GLOB model_RC "models/glTF-KTX-BasisU/*.*")
-#set(MODEL_GLTF_PATH models/Box.glb)
+#set(MODEL_GLTF_PATH models/suzanne_metal.glb)
+#set(MODEL_GLTF_PATH models/cube_vertex_color.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}

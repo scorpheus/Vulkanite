@@ -4,12 +4,13 @@
 
 namespace vulkanite_raytrace {
 void InitRaytrace();
-void createBottomLevelAccelerationStructure(std::vector<objectGLTF> &sceneGLTF);
+void createBottomLevelAccelerationStructure(const objectGLTF &obj);
+void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const glm::mat4 &world);
 void createTopLevelAccelerationStructure();
 void createStorageImage(VkFormat format, VkExtent3D extent);
 void createUniformBuffer();
 void createShaderBindingTables();
-void createDescriptorSets(std::vector<objectGLTF> &sceneGLTF);
+void createDescriptorSets();
 void createRayTracingPipeline();
-void buildCommandBuffers(VkCommandBuffer commandBuffer);
+void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 }

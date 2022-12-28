@@ -529,15 +529,39 @@ void loadSceneGLTF() {
 
 	// setup raytrace
 	vulkanite_raytrace::InitRaytrace();
-	vulkanite_raytrace::createBottomLevelAccelerationStructure(sceneGLTF);
+
+	// make blas
+	std::function<void(const objectGLTF &)> makeBLASf;
+	makeBLASf = [&](const objectGLTF &obj) {
+		if (obj.primMesh)
+			vulkanite_raytrace::createBottomLevelAccelerationStructure(obj);
+		for (const auto &objChild : obj.children)
+			makeBLASf(objChild);
+	};
+	for (const auto &o : sceneGLTF)
+		makeBLASf(o);
+
+	// make las
+	std::function<void(const objectGLTF &, const glm::mat4 &)> makeTLASf;
+	makeTLASf = [&](const objectGLTF &obj, const glm::mat4 &parent_world) {
+		if (obj.primMesh)
+			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world);
+		for (const auto &objChild : obj.children)
+			makeTLASf(objChild, obj.world * parent_world);
+	};
+	for (const auto &o : sceneGLTF)
+		makeTLASf(o, glm::mat4(1));
+
+	//vulkanite_raytrace::createTopLevelAccelerationStructureInstance(sceneGLTF[0].children[0], glm::mat4(1));
+
 	vulkanite_raytrace::createTopLevelAccelerationStructure();
 
 	vulkanite_raytrace::createStorageImage(swapChainImageFormat, {swapChainExtent.width, swapChainExtent.height, 1});
 	vulkanite_raytrace::createUniformBuffer();
 	vulkanite_raytrace::createRayTracingPipeline();
 	vulkanite_raytrace::createShaderBindingTables();
-	vulkanite_raytrace::createDescriptorSets(sceneGLTF);
-	
+	vulkanite_raytrace::createDescriptorSets();
+
 	//std::function<void(const objectGLTF &)> f;
 
 	//f = [&](const objectGLTF &obj) {
@@ -551,27 +575,26 @@ void loadSceneGLTF() {
 	//};
 	//for (const auto &o : sceneGLTF)
 	//	f(o);
-	
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
-	if (obj.vertexBuffer &&
+	if (obj.primMesh &&
 	    ((obj.mat.pushConstBlockMaterial.alphaMask == 0.f && !isRenderingAlphaPass) || (obj.mat.pushConstBlockMaterial.alphaMask != 0.f && isRenderingAlphaPass))) {
 		updateUniformBuffer(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
 
-		VkBuffer vertexBuffers[] = {obj.vertexBuffer};
+		VkBuffer vertexBuffers[] = {obj.primMesh->vertexBuffer};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffer, obj.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(commandBuffer, obj.primMesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0, nullptr);
 
 		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstBlockMaterial), &obj.mat.pushConstBlockMaterial);
 
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(obj.indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(obj.primMesh->indices.size()), 1, 0, 0, 0);
 	}
 
 	for (const auto &objChild : obj.children)
@@ -591,7 +614,7 @@ void deleteModel() {
 	std::function<void(objectGLTF &)> f;
 
 	f = [=](objectGLTF &obj) {
-		if (obj.vertexBuffer) {
+		if (obj.primMesh) {
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				if (i < obj.uniformBuffers.size())
 					vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
@@ -599,11 +622,12 @@ void deleteModel() {
 					vkFreeMemory(device, obj.uniformBuffersMemory[i], nullptr);
 			}
 
-			vkDestroyBuffer(device, obj.indexBuffer, nullptr);
-			vkFreeMemory(device, obj.indexBufferMemory, nullptr);
+			// TODO delete from the cache
+			//vkDestroyBuffer(device, obj.primMesh->indexBuffer, nullptr);
+			//vkFreeMemory(device, obj.primMesh->indexBufferMemory, nullptr);
 
-			vkDestroyBuffer(device, obj.vertexBuffer, nullptr);
-			vkFreeMemory(device, obj.vertexBufferMemory, nullptr);
+			//vkDestroyBuffer(device, obj.primMesh->vertexBuffer, nullptr);
+			//vkFreeMemory(device, obj.primMesh->vertexBufferMemory, nullptr);
 
 			vkDestroyDescriptorPool(device, obj.descriptorPool, nullptr);
 

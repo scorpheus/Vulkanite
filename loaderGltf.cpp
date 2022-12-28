@@ -3,6 +3,11 @@
 #include "core_utils.h"
 #include "texture.h"
 #include "vertex_config.h"
+#include "VulkanBuffer.h"
+
+VkBuffer allVerticesBuffer;
+VkBuffer allIndicesBuffer;
+vks::Buffer offsetPrimsBuffer;
 
 #include <nlohmann/json.hpp>
 
@@ -11,6 +16,7 @@
 #define TINYGLTF_NO_INCLUDE_JSON
 #define TINYGLTF_USE_CPP14
 #define TINYGLTF_ENABLE_DRACO
+#include <set>
 #include <tiny_gltf.h>
 using namespace tinygltf;
 
@@ -46,6 +52,7 @@ bool ReadWholeFileVulkanite(std::vector<unsigned char> *out, std::string *err, c
 }
 
 std::map<std::string, std::shared_ptr<textureGLTF>> textureCache;
+std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
 
 bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
 	std::string imageName = image->uri;
@@ -59,7 +66,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 
 	if (image->mimeType == "image/ktx2" || fs::path(imageName).extension() == ".ktx2") {
 		// test load ktx from khronos ktx
-		ktxTexture *texture = nullptr;		
+		ktxTexture *texture = nullptr;
 		if (ktxTexture_CreateFromMemory(bytes, size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture) == KTX_SUCCESS) {
 			// Retrieve information about the texture from fields in the ktxTexture
 			// such as:
@@ -83,7 +90,8 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 				                   VK_FORMAT_R8G8B8A8_UNORM);
 			}
 			ktxTexture_Destroy(texture);
-		} else { // if not working, try from basisu
+		} else {
+			// if not working, try from basisu
 			basist::basisu_transcoder_init();
 			basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
 			basist::basisu_transcoder transcoder(&sel_codebook);
@@ -144,7 +152,6 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 	return true;
 }
 
-std::map<std::string, std::string> primitiveIdsToGeoPath;
 std::map<std::string, int> geoPathOcurrence;
 
 static std::string Indent(const int indent) {
@@ -635,7 +642,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 #define __PolIndex (pol_index[p] + v)
 #define __PolRemapIndex (pol_index[p] + (geo.pol[p].vtx_count - 1 - v))
 
-static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, const int &primitiveID, objectGLTF &prim) {
+static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, primMeshGLTF &prim) {
 	// TODO detect instancing (using SHA1 on model)
 
 	// Boolean used to check if we have converted the vertex buffer format
@@ -743,6 +750,8 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 			};
 			AttribWritter w_texcoord1 = [](float *w, uint32_t p) {
 			};
+			AttribWritter w_color0 = [](float *w, uint32_t p) {
+			};
 			AttribWritter w_tangent = [](float *w, uint32_t p) {
 			};
 			AttribWritter w_joints0 = [](float *w, uint32_t p) {
@@ -773,6 +782,9 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 				} else if (attribute.first == "TEXCOORD_1") {
 					writter = &w_texcoord1;
 					max_components = 2;
+				} else if (attribute.first == "COLOR_0") {
+					writter = &w_color0;
+					max_components = 4;
 				} else if (attribute.first == "TANGENT") {
 					writter = &w_tangent;
 					max_components = 4;
@@ -940,6 +952,17 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, c
 					}
 				}
 
+				// Vertex Color
+				if (attribute.first == "COLOR_0") {
+					spdlog::debug("Found vertex color 0");
+
+					glm::vec4 c0{0,0,0,1};
+					for (uint32_t i{0}; i < count; ++i) {
+						w_color0(&c0.x, i);
+						prim.vertices[i].color = c0;
+					}
+				}
+
 				//// JOINTS_0
 				//if (attribute.first == "JOINTS_0") {
 				//	spdlog::debug("found JOINTS_0 attribute");
@@ -1023,22 +1046,23 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 		return;
 
 	std::string path = node.name;
-	std::string primitiveIds;
 
 	// Import geo mesh
 	if (gltf_node.mesh >= 0) {
 		auto gltf_mesh = model.meshes[gltf_node.mesh];
 
-		int primitiveId = 0;
 		for (auto meshPrimitive : gltf_mesh.primitives) {
-			objectGLTF prim{};
+			objectGLTF subMesh{};
+			subMesh.id = meshPrimitive.indices;
 
-			ImportGeometry(model, meshPrimitive, primitiveId, prim);
+			// get the prim mesh from the cache
+			if (primsMeshCache.contains(subMesh.id))
+				subMesh.primMesh = primsMeshCache[subMesh.id];
 
 			// MATERIALS
 			if (meshPrimitive.material >= 0) {
 				auto gltf_mat = model.materials[meshPrimitive.material];
-				prim.mat = ImportMaterial(model, gltf_mat);
+				subMesh.mat = ImportMaterial(model, gltf_mat);
 				//		if (prim.skin.size())
 				//			mat.flags |= hg::MF_EnableSkinning;
 
@@ -1052,25 +1076,21 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 					false, textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
 					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}}
 				};
-				prim.mat = mat;
+				subMesh.mat = mat;
 			}
 
-			// create VULKAN need
+			// create VULKAN needs
+			createDescriptorSetLayout(subMesh.descriptorSetLayout);
+			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
+			                       subMesh.descriptorSetLayout,
+			                       subMesh.mat.pushConstBlockMaterial.alphaMask);
 
-			createDescriptorSetLayout(prim.descriptorSetLayout);
-			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", prim.pipelineLayout, prim.graphicsPipeline, renderPass, msaaSamples, prim.descriptorSetLayout,
-			                       prim.mat.pushConstBlockMaterial.alphaMask);
+			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped);
 
-			createVertexBuffer(prim.vertices, prim.vertexBuffer, prim.vertexBufferMemory);
-			createIndexBuffer(prim.indices, prim.indexBuffer, prim.indexBufferMemory);
+			createDescriptorPool(subMesh.descriptorPool);
+			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.mat, subMesh.descriptorSetLayout, subMesh.descriptorPool);
 
-			createUniformBuffers(prim.uniformBuffers, prim.uniformBuffersMemory, prim.uniformBuffersMapped);
-
-			createDescriptorPool(prim.descriptorPool);
-			createDescriptorSets(prim.descriptorSets, prim.uniformBuffers, prim.mat, prim.descriptorSetLayout, prim.descriptorPool);
-
-			node.children.push_back(std::move(prim));
-			++primitiveId;
+			node.children.push_back(std::move(subMesh));
 		}
 
 		//const auto vtx_to_pol = hg::ComputeVertexToPolygon(geo);
@@ -1160,9 +1180,6 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 	//} else
 	//	geoPathOcurrence[path] = 0;
 
-	// save it to geo to keep TODO instance style
-	//primitiveIdsToGeoPath[primitiveIds] = path;
-
 	if (gltf_node.mesh >= 0 || gltf_node.skin >= 0)
 		spdlog::debug(fmt::format("Import geometry to '{}'", path));
 }
@@ -1185,7 +1202,7 @@ static void ImportCamera(const Model &model, const Node &gltf_node, objectGLTF &
 	//}
 	//node.SetCamera(camera);
 
-	camWorld = node.world;
+	updateCamWorld(node.world);
 }
 
 //static void ImportLight(const Model &model, const size_t &id_light, hg::Node &node, std::vector<objectGLTF> &scene) {
@@ -1333,6 +1350,41 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 		textureCache[imageName] = tex;
 	}
 
+	// load all prims
+	for (const auto &mesh : model.meshes) {
+		for (const auto &meshPrimitive : mesh.primitives) {
+			if (primsMeshCache.contains(meshPrimitive.indices))
+				continue;
+			
+			auto primMesh = std::make_shared<primMeshGLTF>();
+			ImportGeometry(model, meshPrimitive, *primMesh);
+			createVertexBuffer(primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory);
+			createIndexBuffer(primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory);
+
+			primsMeshCache[meshPrimitive.indices] = primMesh;
+		}
+	}
+
+	// make the big vertex cache and compute the offset for each prims
+	std::vector<Vertex> allVertices;
+	std::vector<uint32_t> allIndices;
+	struct offsetPrim{uint32_t offsetVertex, offsetIndex;};
+	std::vector<offsetPrim> offsetPrims;
+	uint32_t counterPrim = 0;
+	for(auto &prim: primsMeshCache) {
+		prim.second->id = counterPrim;
+		offsetPrims.push_back({static_cast<uint32_t>(allVertices.size()), static_cast<uint32_t>(allIndices.size())});
+		allVertices.insert(allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end());
+		allIndices.insert(allIndices.end(), prim.second->indices.begin(), prim.second->indices.end());
+		++counterPrim;
+	}
+	// store these buffer in vkBuffer
+	VkDeviceMemory allVerticesBufferMemory;
+	VkDeviceMemory allIndicesBufferMemory;
+	createVertexBuffer(allVertices, allVerticesBuffer, allVerticesBufferMemory);
+	createIndexBuffer(allIndices, allIndicesBuffer, allIndicesBufferMemory);	
+	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(), offsetPrims.data());
+	
 	// Handle only one big scene
 	std::vector<objectGLTF> scene;
 	for (auto gltf_scene : model.scenes) {

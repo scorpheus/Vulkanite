@@ -6,7 +6,7 @@
 class CalcTangents {
 public:
 	CalcTangents();
-	void calc(objectGLTF *mesh);
+	void calc(primMeshGLTF *mesh);
 
 private:
 	SMikkTSpaceInterface iface{};

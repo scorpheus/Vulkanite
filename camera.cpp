@@ -11,6 +11,20 @@ static float pitch(0.376), yaw(-2.2), roll(0.f);
 static glm::vec3 translation(-0.656056166, -0.294942170, 0.433864325);
 double xMousePos, yMousePos;
 
+void updateCamWorld(glm::mat4 world) {
+	camWorld = world;
+	glm::vec3 scale;
+	glm::quat rotation;
+	glm::vec3 skew;
+	glm::vec4 perspective;
+	glm::decompose(camWorld, scale, rotation, translation, skew, perspective);
+	translation.z *= -1;
+
+	pitch = glm::pitch(rotation);
+	yaw = glm::yaw(rotation);
+	roll = glm::roll(rotation);
+}
+
 void updateCamera(GLFWwindow *window, float deltaTime) {
 	const glm::mat4 inverted = glm::inverse(camWorld);
 	const glm::vec3 forward = normalize(glm::vec3(inverted[2]));

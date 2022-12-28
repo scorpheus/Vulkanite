@@ -55,13 +55,8 @@ struct matGLTF {
 	PushConstBlockMaterial pushConstBlockMaterial;
 };
 
-struct objectGLTF {
-	std::vector<objectGLTF> children;
-	std::string name;
-	glm::mat4 world{1};
-
-	matGLTF mat;
-
+struct primMeshGLTF {
+	uint32_t id{0};
 	// Vulkan
 	std::vector<Vertex> vertices;
 	VkBuffer vertexBuffer;
@@ -69,6 +64,18 @@ struct objectGLTF {
 	std::vector<uint32_t> indices;
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
+};
+
+struct objectGLTF {
+	std::vector<objectGLTF> children;
+	uint32_t id{0};
+	std::string name;
+	glm::mat4 world{1};
+
+	matGLTF mat;
+
+	// Vulkan
+	std::shared_ptr<primMeshGLTF> primMesh;
 
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
@@ -83,3 +90,7 @@ struct objectGLTF {
 };
 
 std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath);
+
+extern VkBuffer allVerticesBuffer;
+extern VkBuffer allIndicesBuffer;
+extern vks::Buffer offsetPrimsBuffer;

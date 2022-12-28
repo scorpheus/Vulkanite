@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 std::string errorString(VkResult errorCode);
@@ -37,6 +38,7 @@ extern VkQueue graphicsQueue;
 extern VkQueue presentQueue;
 extern VkCommandPool commandPool;
 
+extern std::vector<VkImage> swapChainImages;
 extern VkFormat swapChainImageFormat;
 
 extern VkRenderPass renderPass;
@@ -78,4 +80,11 @@ void transitionImageLayout(VkImage image,
                            VkImageLayout oldLayout,
                            VkImageLayout newLayout,
                            uint32_t mipLevels);
+void setImageLayout(VkCommandBuffer cmdbuffer,
+                    VkImage image,
+                    VkImageLayout oldImageLayout,
+                    VkImageLayout newImageLayout,
+                    VkImageSubresourceRange subresourceRange,
+                    VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                    VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
