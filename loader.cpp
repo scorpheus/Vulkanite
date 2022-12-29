@@ -10,6 +10,7 @@
 #include "core_utils.h"
 #include "vertex_config.h"
 #include "texture.h"
+#include "VulkanBuffer.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -160,18 +161,15 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 	samplerEnvMapLayoutBinding.pImmutableSamplers = nullptr;
 	samplerEnvMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 5> samplerLayoutBinding;
-	for (int i = 0; i < 5; ++i) {
-		samplerLayoutBinding[i].binding = i + 3;
-		samplerLayoutBinding[i].descriptorCount = 1;
-		samplerLayoutBinding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding[i].pImmutableSamplers = nullptr;
-		samplerLayoutBinding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	}
-
-	std::array<VkDescriptorSetLayoutBinding, 8> bindings = {
-		uboLayoutBinding, uboParamsLayoutBinding, samplerEnvMapLayoutBinding, samplerLayoutBinding[0], samplerLayoutBinding[1], samplerLayoutBinding[2], samplerLayoutBinding[3],
-		samplerLayoutBinding[4]
+	// all textures
+	VkDescriptorSetLayoutBinding samplerTexturesLayoutBinding;
+	samplerTexturesLayoutBinding.binding = 3;
+	samplerTexturesLayoutBinding.descriptorCount = sceneGLTF.textureCache.size();
+	samplerTexturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerTexturesLayoutBinding.pImmutableSamplers = nullptr;
+	samplerTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	
+	std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, uboParamsLayoutBinding, samplerEnvMapLayoutBinding, samplerTexturesLayoutBinding
 	};
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -184,18 +182,16 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 }
 
 void createDescriptorPool(VkDescriptorPool &descriptorPool) {
-	std::array<VkDescriptorPoolSize, 8> poolSizes{};
+	std::array<VkDescriptorPoolSize, 4> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-	for (int i = 3; i < 3 + 5; ++i) {
-		poolSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[i].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-	}
-
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[3].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
@@ -240,24 +236,17 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		imageEnvMapInfo.imageView = envMap.textureImageView;
 		imageEnvMapInfo.sampler = envMap.textureSampler;
 
-		std::array<VkDescriptorImageInfo, 5> imageInfo;
-		imageInfo[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[0].imageView = mat.albedoTex->textureImageView;
-		imageInfo[0].sampler = mat.albedoTex->textureSampler;
-		imageInfo[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[1].imageView = mat.metallicRoughnessTex->textureImageView;
-		imageInfo[1].sampler = mat.metallicRoughnessTex->textureSampler;
-		imageInfo[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[2].imageView = mat.normalTex->textureImageView;
-		imageInfo[2].sampler = mat.normalTex->textureSampler;
-		imageInfo[3].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[3].imageView = mat.aoTex->textureImageView;
-		imageInfo[3].sampler = mat.aoTex->textureSampler;
-		imageInfo[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo[4].imageView = mat.emissiveTex->textureImageView;
-		imageInfo[4].sampler = mat.emissiveTex->textureSampler;
+		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
+		imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
+		for (const auto &t : sceneGLTF.textureCache) {
+			VkDescriptorImageInfo imageTextureMapInfo;
+			imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageTextureMapInfo.imageView = t.second->textureImageView;
+			imageTextureMapInfo.sampler = t.second->textureSampler;
+			imageAllTexturesInfo.push_back(imageTextureMapInfo);
+		}
 
-		std::array<VkWriteDescriptorSet, 3 + imageInfo.size()> descriptorWrites{};
+		std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
 
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSets[i];
@@ -283,16 +272,14 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		descriptorWrites[2].descriptorCount = 1;
 		descriptorWrites[2].pImageInfo = &imageEnvMapInfo;
 
-		for (int j = 3; j < 3 + imageInfo.size(); ++j) {
-			descriptorWrites[j].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[j].dstSet = descriptorSets[i];
-			descriptorWrites[j].dstBinding = j;
-			descriptorWrites[j].dstArrayElement = 0;
-			descriptorWrites[j].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[j].descriptorCount = 1;
-			descriptorWrites[j].pImageInfo = &imageInfo[j - 3];
-		}
-
+		descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[3].dstSet = descriptorSets[i];
+		descriptorWrites[3].dstBinding = 3;
+		descriptorWrites[3].dstArrayElement = 0;
+		descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[3].descriptorCount = imageAllTexturesInfo.size();
+		descriptorWrites[3].pImageInfo = imageAllTexturesInfo.data();
+		
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
@@ -408,7 +395,7 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.size = sizeof(PushConstBlockMaterial);
+	pushConstantRange.size = sizeof(matGLTF);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pushConstantRange.offset = 0;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -509,7 +496,7 @@ void updateUniformParamsBuffer(uint32_t currentFrame) {
 	memcpy(uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof(uboParams));
 }
 
-std::vector<objectGLTF> sceneGLTF;
+SceneVulkanite sceneGLTF;
 
 
 void loadSceneGLTF() {
@@ -524,7 +511,7 @@ void loadSceneGLTF() {
 	createUniformParamsBuffers();
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		updateUniformParamsBuffer(i);
-	sceneGLTF = loadSceneGltf(MODEL_GLTF_PATH);
+	sceneGLTF.roots = loadSceneGltf(MODEL_GLTF_PATH);
 
 
 	// setup raytrace
@@ -538,7 +525,7 @@ void loadSceneGLTF() {
 		for (const auto &objChild : obj.children)
 			makeBLASf(objChild);
 	};
-	for (const auto &o : sceneGLTF)
+	for (const auto &o : sceneGLTF.roots)
 		makeBLASf(o);
 
 	// make las
@@ -549,7 +536,7 @@ void loadSceneGLTF() {
 		for (const auto &objChild : obj.children)
 			makeTLASf(objChild, obj.world * parent_world);
 	};
-	for (const auto &o : sceneGLTF)
+	for (const auto &o : sceneGLTF.roots)
 		makeTLASf(o, glm::mat4(1));
 
 	//vulkanite_raytrace::createTopLevelAccelerationStructureInstance(sceneGLTF[0].children[0], glm::mat4(1));
@@ -579,7 +566,7 @@ void loadSceneGLTF() {
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
 	if (obj.primMesh &&
-	    ((obj.mat.pushConstBlockMaterial.alphaMask == 0.f && !isRenderingAlphaPass) || (obj.mat.pushConstBlockMaterial.alphaMask != 0.f && isRenderingAlphaPass))) {
+	    ((obj.mat.alphaMask == 0.f && !isRenderingAlphaPass) || (obj.mat.alphaMask != 0.f && isRenderingAlphaPass))) {
 		updateUniformBuffer(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
@@ -592,7 +579,7 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0, nullptr);
 
-		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstBlockMaterial), &obj.mat.pushConstBlockMaterial);
+		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(matGLTF), &obj.mat);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(obj.primMesh->indices.size()), 1, 0, 0, 0);
 	}
@@ -603,10 +590,10 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 
 void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	// draw opaque
-	for (auto &obj : sceneGLTF)
+	for (auto &obj : sceneGLTF.roots)
 		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), false);
 	// draw alpha
-	for (auto &obj : sceneGLTF)
+	for (auto &obj : sceneGLTF.roots)
 		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), true);
 }
 
@@ -639,7 +626,7 @@ void deleteModel() {
 			f(obj);
 	};
 
-	for (auto o : sceneGLTF) {
+	for (auto o : sceneGLTF.roots) {
 		f(o);
 	}
 }

@@ -26,13 +26,15 @@
 #include "raytrace.h"
 
 const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-													VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-													VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-													VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-													VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-													VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-													VK_KHR_SPIRV_1_4_EXTENSION_NAME};
+const std::vector<const char*> deviceExtensions = {
+	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+	VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+	VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+	VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+};
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphicsFamily;
@@ -436,10 +438,13 @@ private:
 		createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
+		VkPhysicalDeviceDescriptorIndexingFeatures enableDescriptorIndexingFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES};
+		enableDescriptorIndexingFeatures.runtimeDescriptorArray = true;
 
 		// Enable features required for ray tracing using feature chaining via pNext
 		VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
 		enabledBufferDeviceAddresFeatures.bufferDeviceAddress = VK_TRUE;
+		enabledBufferDeviceAddresFeatures.pNext = &enableDescriptorIndexingFeatures;
 
 		VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
 		enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;

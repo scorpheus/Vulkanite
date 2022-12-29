@@ -427,13 +427,13 @@ void createShaderBindingTables() {
 	VK_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data()));
 
 	createShaderBindingTable(shaderBindingTables.raygen, 1);
-	createShaderBindingTable(shaderBindingTables.miss, 1);
+	createShaderBindingTable(shaderBindingTables.miss, 2);
 	createShaderBindingTable(shaderBindingTables.hit, 1);
 
 	// Copy handles
 	memcpy(shaderBindingTables.raygen.mapped, shaderHandleStorage.data(), handleSize);
-	memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize);
-	memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
+	memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize*2);
+	memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
 }
 
 /*
@@ -466,7 +466,7 @@ void createDescriptorSets() {
 		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
@@ -495,9 +495,9 @@ void createDescriptorSets() {
 	accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
 	VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImage.view, VK_IMAGE_LAYOUT_GENERAL};
-	VkDescriptorBufferInfo vertexBufferDescriptor{allVerticesBuffer, 0, VK_WHOLE_SIZE};
-	VkDescriptorBufferInfo indexBufferDescriptor{allIndicesBuffer, 0, VK_WHOLE_SIZE};
-	VkDescriptorBufferInfo offsetPrimsBufferDescriptor{offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};	
+	VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
+	VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
+	VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};	
 
 	std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 		// Binding 0: Top level acceleration structure
@@ -592,7 +592,7 @@ void createRayTracingPipeline() {
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
 	VkSpecializationMapEntry specializationMapEntry_ = specializationMapEntry(0, 0, sizeof(uint32_t));
-	uint32_t maxRecursion = 500;
+	uint32_t maxRecursion = 10;
 	VkSpecializationInfo specializationInfo_ = specializationInfo(1, &specializationMapEntry_, sizeof(maxRecursion), &maxRecursion);
 
 	// Ray generation group
@@ -621,8 +621,12 @@ void createRayTracingPipeline() {
 		shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
 		shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
 		shaderGroups.push_back(shaderGroup);
+		// Second shader for shadows
+		shaderStages.push_back(loadShader("spv/shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
+		shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+		shaderGroups.push_back(shaderGroup);
 	}
-
+	
 	// Closest hit group
 	{
 		shaderStages.push_back(loadShader("spv/closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
@@ -657,7 +661,7 @@ void updateUniformBuffers() {
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count()/100.f;
 
-	uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, -20.0f + sin(glm::radians(timer * 360.0f)) * 20.0f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
+	uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, 20.f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
 	// Pass the vertex size to the shader for unpacking vertices
 	uniformData.vertexSize = sizeof(Vertex);
 	memcpy(ubo.mapped, &uniformData, sizeof(uniformData));
@@ -710,8 +714,8 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	copyRegion.srcOffset = {0, 0, 0};
 	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
 	copyRegion.dstOffset = {0, 0, 0};
-	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height / 2, 1};
-	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+	copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
+	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
 	vkCmdCopyImage(commandBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 	// Transition swap chain image back for presentation

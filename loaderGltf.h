@@ -30,7 +30,14 @@ struct textureGLTF {
 	//}
 };
 
-struct PushConstBlockMaterial {
+struct matGLTF {
+	bool doubleSided;
+	int albedoTex;
+	int metallicRoughnessTex;
+	int aoTex;
+	int normalTex;
+	int emissiveTex;
+
 	float metallicFactor;
 	float roughnessFactor;
 	float alphaMask;
@@ -42,17 +49,6 @@ struct PushConstBlockMaterial {
 	int emissiveTextureSet;
 	glm::vec4 baseColorFactor;
 	glm::vec3 emissiveFactor;
-};
-
-struct matGLTF {
-	bool doubleSided; 
-	std::shared_ptr<textureGLTF> albedoTex;
-	std::shared_ptr<textureGLTF> metallicRoughnessTex;
-	std::shared_ptr<textureGLTF> aoTex;
-	std::shared_ptr<textureGLTF> normalTex;
-	std::shared_ptr<textureGLTF> emissiveTex;
-
-	PushConstBlockMaterial pushConstBlockMaterial;
 };
 
 struct primMeshGLTF {
@@ -90,7 +86,3 @@ struct objectGLTF {
 };
 
 std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath);
-
-extern VkBuffer allVerticesBuffer;
-extern VkBuffer allIndicesBuffer;
-extern vks::Buffer offsetPrimsBuffer;

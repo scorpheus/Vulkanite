@@ -117,7 +117,8 @@ set(ENVMAP textures/limpopo_golf_course_1k.hdr)
 set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #file(GLOB model_RC "models/glTF-KTX-BasisU/*.*")
 #set(MODEL_GLTF_PATH models/suzanne_metal.glb)
-#set(MODEL_GLTF_PATH models/cube_vertex_color.glb)
+#set(MODEL_GLTF_PATH models/BoxTextured.glb)
+#set(MODEL_GLTF_PATH models/sponza.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}
@@ -128,6 +129,7 @@ cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc
 	spv/raygen.rgen.spv
 	spv/shader.frag.spv
 	spv/shader.vert.spv
+	spv/shadow.rmiss.spv
 )
 target_link_libraries(Vulkanite PRIVATE gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")

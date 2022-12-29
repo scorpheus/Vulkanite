@@ -1,8 +1,12 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
+
+#include "loaderGltf.h"
+#include "VulkanBuffer.h"
 
 struct matGLTF;
 struct Vertex;
@@ -33,3 +37,15 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const matGLTF &mat,
                           const VkDescriptorSetLayout &descriptorSetLayout,
                           const VkDescriptorPool &descriptorPool);
+
+struct SceneVulkanite {
+	std::vector<objectGLTF> roots;
+
+	VkBuffer allVerticesBuffer;
+	VkBuffer allIndicesBuffer;
+	vks::Buffer offsetPrimsBuffer;
+
+	std::map<int, std::shared_ptr<textureGLTF>> textureCache;
+	std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
+};
+extern SceneVulkanite sceneGLTF;

@@ -5,10 +5,6 @@
 #include "vertex_config.h"
 #include "VulkanBuffer.h"
 
-VkBuffer allVerticesBuffer;
-VkBuffer allIndicesBuffer;
-vks::Buffer offsetPrimsBuffer;
-
 #include <nlohmann/json.hpp>
 
 #define TINYGLTF_IMPLEMENTATION
@@ -50,9 +46,6 @@ bool ReadWholeFileVulkanite(std::vector<unsigned char> *out, std::string *err, c
 	out->insert(out->begin(), fileRC.begin(), fileRC.end());
 	return true;
 }
-
-std::map<std::string, std::shared_ptr<textureGLTF>> textureCache;
-std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
 
 bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
 	std::string imageName = image->uri;
@@ -146,7 +139,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex->textureSampler, tex->mipLevels);
 
-		textureCache[imageName] = tex;
+		sceneGLTF.textureCache[image_idx+1] = tex;
 	}
 
 	return true;
@@ -505,15 +498,32 @@ struct m44fArray {
 //	}
 //}
 
+//
+static int ImportTexture(const Model &model, const int &textureIndex) {
+	if (textureIndex < 0)
+		return -1;
 
-static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int &textureIndex, const std::string &imageName) {
-	if (textureCache.find(imageName) != textureCache.end()) {
-		return textureCache[imageName];
+	const auto &texture = model.textures[textureIndex];
+	auto textureSourceIndex = texture.source;
+	if (textureSourceIndex < 0) {
+		if (texture.extensions.find("KHR_texture_basisu") == texture.extensions.end())
+			return -1;
+		textureSourceIndex = texture.extensions.at("KHR_texture_basisu").GetNumberAsInt();
 	}
-	return nullptr;
-	//auto texture = model.textures[textureIndex];
-	//uint32_t flags = BGFX_SAMPLER_NONE;
-	//if (texture.sampler >= 0) {
+	const auto &image = model.images[textureSourceIndex];
+
+	std::string imageName = image.uri;
+
+	if (image.uri.empty())
+		imageName = image.name.empty() ? fmt::format("{}", textureIndex) : image.name;
+
+	if (sceneGLTF.textureCache.find(textureSourceIndex+1) != sceneGLTF.textureCache.end()) {
+		return textureSourceIndex+1;
+	}
+	return -1;
+	// auto texture = model.textures[textureIndex];
+	// uint32_t flags = BGFX_SAMPLER_NONE;
+	// if (texture.sampler >= 0) {
 	//	auto sampler = model.samplers[texture.sampler];
 
 	//	switch (sampler.wrapS) {
@@ -532,31 +542,9 @@ static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int 
 	//	}
 	//}
 
-	//std::string dst_rel_path = MakeRelativeResourceName(dst_path, config.prj_path, config.prefix);
+	// std::string dst_rel_path = MakeRelativeResourceName(dst_path, config.prj_path, config.prefix);
 
-	//return resources.textures.Add(dst_rel_path.c_str(), {flags, BGFX_INVALID_HANDLE});
-}
-
-//
-static std::shared_ptr<textureGLTF> ImportTexture(const Model &model, const int &textureIndex) {
-	if (textureIndex < 0)
-		return nullptr;
-
-	const auto &texture = model.textures[textureIndex];
-	auto textureSourceIndex = texture.source;
-	if (textureSourceIndex < 0) {
-		if (texture.extensions.find("KHR_texture_basisu") == texture.extensions.end())
-			return nullptr;
-		textureSourceIndex = texture.extensions.at("KHR_texture_basisu").GetNumberAsInt();
-	}
-	const auto &image = model.images[textureSourceIndex];
-
-	std::string imageName = image.uri;
-
-	if (image.uri.empty())
-		imageName = image.name.empty() ? fmt::format("{}", textureIndex) : image.name;
-
-	return ImportTexture(model, textureIndex, imageName);
+	// return resources.textures.Add(dst_rel_path.c_str(), {flags, BGFX_INVALID_HANDLE});
 }
 
 static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
@@ -568,8 +556,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	//
 	std::string dst_path;
 	matGLTF mat{
-		false, textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
-		{
+		false, 0, 0, 0, 0, 0,
 			1,
 			1,
 			0,
@@ -581,56 +568,54 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 			0,
 			{},
 			{}
-		}
 	};
 
 	// BaseColor Texture
-	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture != nullptr) {
-		spdlog::debug(fmt::format("    - uBaseOpacityMap: {}", baseColorTexture->name));
+	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >=0 ) {
 		mat.albedoTex = baseColorTexture;
-		mat.pushConstBlockMaterial.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
+		mat.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
 	}
 
 	// metallic Roughness Texture
-	if (auto metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture != nullptr) {
+	if (auto metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture >= 0) {
 		mat.metallicRoughnessTex = metallicRoughnessTexture;
-		mat.pushConstBlockMaterial.metallicRoughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
+		mat.metallicRoughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
 	}
 
 	// ao Texture
-	if (auto occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture != nullptr) {
+	if (auto occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture >= 0) {
 		mat.aoTex = occlusionTexture;
-		mat.pushConstBlockMaterial.occlusionTextureSet = gltf_mat.occlusionTexture.texCoord;
+		mat.occlusionTextureSet = gltf_mat.occlusionTexture.texCoord;
 	}
 
 	// normal Texture
-	if (auto normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture != nullptr) {
+	if (auto normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture >= 0) {
 		mat.normalTex = normalTexture;
-		mat.pushConstBlockMaterial.normalTextureSet = gltf_mat.normalTexture.texCoord;
+		mat.normalTextureSet = gltf_mat.normalTexture.texCoord;
 	}
 
 	// emissive Texture
-	if (auto emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture != nullptr) {
+	if (auto emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture >= 0) {
 		mat.emissiveTex = emissiveTexture;
-		mat.pushConstBlockMaterial.emissiveTextureSet = gltf_mat.emissiveTexture.texCoord;
+		mat.emissiveTextureSet = gltf_mat.emissiveTexture.texCoord;
 	}
 
-	mat.pushConstBlockMaterial.baseColorFactor = {
+	mat.baseColorFactor = {
 		static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[0]), static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[1]),
 		static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[2]), static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[3])
 	};
-	mat.pushConstBlockMaterial.roughnessFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.roughnessFactor);
-	mat.pushConstBlockMaterial.metallicFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.metallicFactor);
-	mat.pushConstBlockMaterial.emissiveFactor = {
+	mat.roughnessFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.roughnessFactor);
+	mat.metallicFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.metallicFactor);
+	mat.emissiveFactor = {
 		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2])
 	};
 
 	if (gltf_mat.alphaMode == "BLEND")
-		mat.pushConstBlockMaterial.alphaMask = 1;
+		mat.alphaMask = 1;
 
 	if (gltf_mat.alphaMode == "MASK") {
-		mat.pushConstBlockMaterial.alphaMask = 2;
-		mat.pushConstBlockMaterial.alphaMaskCutoff = gltf_mat.alphaCutoff;
+		mat.alphaMask = 2;
+		mat.alphaMaskCutoff = gltf_mat.alphaCutoff;
 	}
 
 	if (gltf_mat.doubleSided)
@@ -1056,8 +1041,8 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			subMesh.id = meshPrimitive.indices;
 
 			// get the prim mesh from the cache
-			if (primsMeshCache.contains(subMesh.id))
-				subMesh.primMesh = primsMeshCache[subMesh.id];
+			if (sceneGLTF.primsMeshCache.contains(subMesh.id))
+				subMesh.primMesh = sceneGLTF.primsMeshCache[subMesh.id];
 
 			// MATERIALS
 			if (meshPrimitive.material >= 0) {
@@ -1073,8 +1058,8 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
 
 				matGLTF mat{
-					false, textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"], textureCache["WhiteTex"],
-					{1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}}
+					false, 0, 0, 0, 0, 0,
+					1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}
 				};
 				subMesh.mat = mat;
 			}
@@ -1083,7 +1068,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			createDescriptorSetLayout(subMesh.descriptorSetLayout);
 			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
 			                       subMesh.descriptorSetLayout,
-			                       subMesh.mat.pushConstBlockMaterial.alphaMask);
+			                       subMesh.mat.alphaMask);
 
 			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped);
 
@@ -1347,13 +1332,13 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 		createTextureImage(reinterpret_cast<const unsigned char*>(texRC.cbegin()), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels);
 		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex->textureSampler, tex->mipLevels);
-		textureCache[imageName] = tex;
+		sceneGLTF.textureCache[0] = tex;
 	}
 
 	// load all prims
 	for (const auto &mesh : model.meshes) {
 		for (const auto &meshPrimitive : mesh.primitives) {
-			if (primsMeshCache.contains(meshPrimitive.indices))
+			if (sceneGLTF.primsMeshCache.contains(meshPrimitive.indices))
 				continue;
 			
 			auto primMesh = std::make_shared<primMeshGLTF>();
@@ -1361,7 +1346,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 			createVertexBuffer(primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory);
 			createIndexBuffer(primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory);
 
-			primsMeshCache[meshPrimitive.indices] = primMesh;
+			sceneGLTF.primsMeshCache[meshPrimitive.indices] = primMesh;
 		}
 	}
 
@@ -1371,7 +1356,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	struct offsetPrim{uint32_t offsetVertex, offsetIndex;};
 	std::vector<offsetPrim> offsetPrims;
 	uint32_t counterPrim = 0;
-	for(auto &prim: primsMeshCache) {
+	for(auto &prim: sceneGLTF.primsMeshCache) {
 		prim.second->id = counterPrim;
 		offsetPrims.push_back({static_cast<uint32_t>(allVertices.size()), static_cast<uint32_t>(allIndices.size())});
 		allVertices.insert(allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end());
@@ -1381,9 +1366,9 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// store these buffer in vkBuffer
 	VkDeviceMemory allVerticesBufferMemory;
 	VkDeviceMemory allIndicesBufferMemory;
-	createVertexBuffer(allVertices, allVerticesBuffer, allVerticesBufferMemory);
-	createIndexBuffer(allIndices, allIndicesBuffer, allIndicesBufferMemory);	
-	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(), offsetPrims.data());
+	createVertexBuffer(allVertices, sceneGLTF.allVerticesBuffer, allVerticesBufferMemory);
+	createIndexBuffer(allIndices, sceneGLTF.allIndicesBuffer, allIndicesBufferMemory);	
+	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(), offsetPrims.data());
 	
 	// Handle only one big scene
 	std::vector<objectGLTF> scene;
