@@ -168,8 +168,16 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 	samplerTexturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerTexturesLayoutBinding.pImmutableSamplers = nullptr;
 	samplerTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	// all materials
+	VkDescriptorSetLayoutBinding materialsLayoutBinding;
+	materialsLayoutBinding.binding = 4;
+	materialsLayoutBinding.descriptorCount = 1;
+	materialsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	materialsLayoutBinding.pImmutableSamplers = nullptr;
+	materialsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	
-	std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, uboParamsLayoutBinding, samplerEnvMapLayoutBinding, samplerTexturesLayoutBinding
+	std::array<VkDescriptorSetLayoutBinding, 5> bindings = {uboLayoutBinding, uboParamsLayoutBinding, samplerEnvMapLayoutBinding, samplerTexturesLayoutBinding, materialsLayoutBinding
 	};
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -182,7 +190,7 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 }
 
 void createDescriptorPool(VkDescriptorPool &descriptorPool) {
-	std::array<VkDescriptorPoolSize, 4> poolSizes{};
+	std::array<VkDescriptorPoolSize, 5> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -191,6 +199,8 @@ void createDescriptorPool(VkDescriptorPool &descriptorPool) {
 	poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[3].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSizes[4].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -205,7 +215,6 @@ void createDescriptorPool(VkDescriptorPool &descriptorPool) {
 
 void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const std::vector<VkBuffer> &uniformBuffers,
-                          const matGLTF &mat,
                           const VkDescriptorSetLayout &descriptorSetLayout,
                           const VkDescriptorPool &descriptorPool) {
 	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
@@ -245,8 +254,10 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 			imageTextureMapInfo.sampler = t.second->textureSampler;
 			imageAllTexturesInfo.push_back(imageTextureMapInfo);
 		}
+		
+		VkDescriptorBufferInfo materialsInfo{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
 
-		std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+		std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSets[i];
@@ -279,7 +290,15 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorWrites[3].descriptorCount = imageAllTexturesInfo.size();
 		descriptorWrites[3].pImageInfo = imageAllTexturesInfo.data();
-		
+
+		descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[4].dstSet = descriptorSets[i];
+		descriptorWrites[4].dstBinding = 4;
+		descriptorWrites[4].dstArrayElement = 0;
+		descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		descriptorWrites[4].descriptorCount = 1;
+		descriptorWrites[4].pBufferInfo = &materialsInfo;
+
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
@@ -395,7 +414,7 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.size = sizeof(matGLTF);
+	pushConstantRange.size = sizeof(uint32_t);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pushConstantRange.offset = 0;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -520,7 +539,7 @@ void loadSceneGLTF() {
 	// make blas
 	std::function<void(const objectGLTF &)> makeBLASf;
 	makeBLASf = [&](const objectGLTF &obj) {
-		if (obj.primMesh)
+		if (sceneGLTF.primsMeshCache[obj.primMesh])
 			vulkanite_raytrace::createBottomLevelAccelerationStructure(obj);
 		for (const auto &objChild : obj.children)
 			makeBLASf(objChild);
@@ -531,7 +550,7 @@ void loadSceneGLTF() {
 	// make las
 	std::function<void(const objectGLTF &, const glm::mat4 &)> makeTLASf;
 	makeTLASf = [&](const objectGLTF &obj, const glm::mat4 &parent_world) {
-		if (obj.primMesh)
+		if (sceneGLTF.primsMeshCache[obj.primMesh])
 			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world);
 		for (const auto &objChild : obj.children)
 			makeTLASf(objChild, obj.world * parent_world);
@@ -565,23 +584,23 @@ void loadSceneGLTF() {
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
-	if (obj.primMesh &&
-	    ((obj.mat.alphaMask == 0.f && !isRenderingAlphaPass) || (obj.mat.alphaMask != 0.f && isRenderingAlphaPass))) {
+	if (sceneGLTF.primsMeshCache[obj.primMesh] &&
+	    ((sceneGLTF.materialsCache[obj.mat].alphaMask == 0.f && !isRenderingAlphaPass) || (sceneGLTF.materialsCache[obj.mat].alphaMask != 0.f && isRenderingAlphaPass))) {
 		updateUniformBuffer(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
 
-		VkBuffer vertexBuffers[] = {obj.primMesh->vertexBuffer};
+		VkBuffer vertexBuffers[] = {sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffer, obj.primMesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(commandBuffer, sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0, nullptr);
 
-		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(matGLTF), &obj.mat);
+		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &obj.mat);
 
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(obj.primMesh->indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sceneGLTF.primsMeshCache[obj.primMesh]->indices.size()), 1, 0, 0, 0);
 	}
 
 	for (const auto &objChild : obj.children)
@@ -601,7 +620,7 @@ void deleteModel() {
 	std::function<void(objectGLTF &)> f;
 
 	f = [=](objectGLTF &obj) {
-		if (obj.primMesh) {
+		if (sceneGLTF.primsMeshCache[obj.primMesh]) {
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				if (i < obj.uniformBuffers.size())
 					vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
@@ -610,11 +629,11 @@ void deleteModel() {
 			}
 
 			// TODO delete from the cache
-			//vkDestroyBuffer(device, obj.primMesh->indexBuffer, nullptr);
-			//vkFreeMemory(device, obj.primMesh->indexBufferMemory, nullptr);
+			//vkDestroyBuffer(device, sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer, nullptr);
+			//vkFreeMemory(device, sceneGLTF.primsMeshCache[obj.primMesh]->indexBufferMemory, nullptr);
 
-			//vkDestroyBuffer(device, obj.primMesh->vertexBuffer, nullptr);
-			//vkFreeMemory(device, obj.primMesh->vertexBufferMemory, nullptr);
+			//vkDestroyBuffer(device, sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer, nullptr);
+			//vkFreeMemory(device, sceneGLTF.primsMeshCache[obj.primMesh]->vertexBufferMemory, nullptr);
 
 			vkDestroyDescriptorPool(device, obj.descriptorPool, nullptr);
 

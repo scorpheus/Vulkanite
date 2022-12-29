@@ -192,11 +192,11 @@ void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
 	VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
 	VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
 
-	vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(obj.primMesh->vertexBuffer);
-	indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(obj.primMesh->indexBuffer);
+	vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer);
+	indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer);
 
-	uint32_t numTriangles = static_cast<uint32_t>(obj.primMesh->indices.size()) / 3;
-	uint32_t maxVertex = obj.primMesh->vertices.size();
+	uint32_t numTriangles = static_cast<uint32_t>(sceneGLTF.primsMeshCache[obj.primMesh]->indices.size()) / 3;
+	uint32_t maxVertex = sceneGLTF.primsMeshCache[obj.primMesh]->vertices.size();
 
 	// Build
 	VkAccelerationStructureGeometryKHR accelerationStructureGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
@@ -262,7 +262,7 @@ void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const gl
 		for (int j = 0; j < 4; j++) 
 			instance.transform.matrix[i][j] = world[j][i];
 
-	instance.instanceCustomIndex = obj.primMesh->id;//static_cast<uint32_t>(instances.size()); // gl_InstanceCustomIndexEXT in the shader
+	instance.instanceCustomIndex = sceneGLTF.primsMeshCache[obj.primMesh]->id << 16 | obj.mat; // gl_InstanceCustomIndexEXT in the shader
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0; // We will use the same hit group for all objects
 	instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
@@ -466,7 +466,9 @@ void createDescriptorSets() {
 		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
@@ -497,7 +499,17 @@ void createDescriptorSets() {
 	VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImage.view, VK_IMAGE_LAYOUT_GENERAL};
 	VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
 	VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
-	VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};	
+	VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
+	std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
+	imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
+	for (const auto &t : sceneGLTF.textureCache) {
+		VkDescriptorImageInfo imageTextureMapInfo;
+		imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageTextureMapInfo.imageView = t.second->textureImageView;
+		imageTextureMapInfo.sampler = t.second->textureSampler;
+		imageAllTexturesInfo.push_back(imageTextureMapInfo);
+	}
+	VkDescriptorBufferInfo materialsBufferDescriptor{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
 
 	std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 		// Binding 0: Top level acceleration structure
@@ -512,6 +524,10 @@ void createDescriptorSets() {
 		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &indexBufferDescriptor),
 		// Binding 5: Scene instance offset
 		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &offsetPrimsBufferDescriptor),
+		// Binding 6: all textures offset
+		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), sceneGLTF.textureCache.size()),
+		// Binding 7: material buffer
+		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &materialsBufferDescriptor),
 	};
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 }
@@ -578,6 +594,10 @@ void createRayTracingPipeline() {
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 4),
 		// Binding 5: Offset buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 5),
+		// Binding 6: textures buffer
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 6, sceneGLTF.textureCache.size()),
+		// Binding 7: materials buffer
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 7),
 	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = descriptorSetLayoutCreateInfo(setLayoutBindings);

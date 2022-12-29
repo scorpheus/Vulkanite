@@ -23,6 +23,21 @@ layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 // Max. number of recursion is passed via a specialization constant
 layout (constant_id = 0) const int MAX_RECURSION = 0;
 
+float linear2sRGB(float x)
+{
+	return x <= 0.0031308 ?
+		12.92 * x :
+		1.055 * pow(x, 0.41666) - 0.055;
+}
+
+vec3 linear2sRGB(vec3 rgb)
+{
+	return vec3(
+		linear2sRGB(rgb.x),
+		linear2sRGB(rgb.y),
+		linear2sRGB(rgb.z));
+}
+
 void main() 
 {
 	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
@@ -42,5 +57,5 @@ void main()
 
 	traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayPayload.color, 0.0));
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(linear2sRGB(rayPayload.color), 0.0));
 }

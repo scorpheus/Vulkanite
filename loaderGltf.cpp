@@ -139,7 +139,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex->textureSampler, tex->mipLevels);
 
-		sceneGLTF.textureCache[image_idx+1] = tex;
+		sceneGLTF.textureCache[image_idx + 1] = tex;
 	}
 
 	return true;
@@ -517,8 +517,8 @@ static int ImportTexture(const Model &model, const int &textureIndex) {
 	if (image.uri.empty())
 		imageName = image.name.empty() ? fmt::format("{}", textureIndex) : image.name;
 
-	if (sceneGLTF.textureCache.find(textureSourceIndex+1) != sceneGLTF.textureCache.end()) {
-		return textureSourceIndex+1;
+	if (sceneGLTF.textureCache.find(textureSourceIndex + 1) != sceneGLTF.textureCache.end()) {
+		return textureSourceIndex + 1;
 	}
 	return -1;
 	// auto texture = model.textures[textureIndex];
@@ -555,23 +555,10 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	//
 	std::string dst_path;
-	matGLTF mat{
-		false, 0, 0, 0, 0, 0,
-			1,
-			1,
-			0,
-			0,
-			0,
-			0,
-			-1,
-			0,
-			0,
-			{},
-			{}
-	};
+	matGLTF mat{0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}};
 
 	// BaseColor Texture
-	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >=0 ) {
+	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >= 0) {
 		mat.albedoTex = baseColorTexture;
 		mat.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
 	}
@@ -619,7 +606,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 	}
 
 	if (gltf_mat.doubleSided)
-		mat.doubleSided = true;
+		mat.doubleSided = 1;
 
 	return std::move(mat);
 }
@@ -941,7 +928,7 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, p
 				if (attribute.first == "COLOR_0") {
 					spdlog::debug("Found vertex color 0");
 
-					glm::vec4 c0{0,0,0,1};
+					glm::vec4 c0{0, 0, 0, 1};
 					for (uint32_t i{0}; i < count; ++i) {
 						w_color0(&c0.x, i);
 						prim.vertices[i].color = c0;
@@ -1042,12 +1029,11 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 
 			// get the prim mesh from the cache
 			if (sceneGLTF.primsMeshCache.contains(subMesh.id))
-				subMesh.primMesh = sceneGLTF.primsMeshCache[subMesh.id];
+				subMesh.primMesh = subMesh.id;
 
 			// MATERIALS
 			if (meshPrimitive.material >= 0) {
-				auto gltf_mat = model.materials[meshPrimitive.material];
-				subMesh.mat = ImportMaterial(model, gltf_mat);
+				subMesh.mat = meshPrimitive.material + 1;
 				//		if (prim.skin.size())
 				//			mat.flags |= hg::MF_EnableSkinning;
 
@@ -1057,23 +1043,19 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 				// make a dummy material to see the objectGLTF in the engine
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
 
-				matGLTF mat{
-					false, 0, 0, 0, 0, 0,
-					1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}
-				};
-				subMesh.mat = mat;
+				subMesh.mat = 0;
 			}
 
 			// create VULKAN needs
 			createDescriptorSetLayout(subMesh.descriptorSetLayout);
 			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
 			                       subMesh.descriptorSetLayout,
-			                       subMesh.mat.alphaMask);
+			                       sceneGLTF.materialsCache[subMesh.mat].alphaMask);
 
 			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped);
 
 			createDescriptorPool(subMesh.descriptorPool);
-			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.mat, subMesh.descriptorSetLayout, subMesh.descriptorPool);
+			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
 
 			node.children.push_back(std::move(subMesh));
 		}
@@ -1335,12 +1317,23 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 		sceneGLTF.textureCache[0] = tex;
 	}
 
+	// load all materials
+	sceneGLTF.materialsCache.resize(model.materials.size() + 1);
+	sceneGLTF.materialsCache[0] = matGLTF{0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}};
+
+	int counter = 1;
+	for (const auto &mat : model.materials)
+		sceneGLTF.materialsCache[counter++] = ImportMaterial(model, mat);
+	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.materialsCacheBuffer, sizeof(matGLTF) * sceneGLTF.materialsCache.size(),
+	             sceneGLTF.materialsCache.data());
+
 	// load all prims
 	for (const auto &mesh : model.meshes) {
 		for (const auto &meshPrimitive : mesh.primitives) {
 			if (sceneGLTF.primsMeshCache.contains(meshPrimitive.indices))
 				continue;
-			
+
 			auto primMesh = std::make_shared<primMeshGLTF>();
 			ImportGeometry(model, meshPrimitive, *primMesh);
 			createVertexBuffer(primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory);
@@ -1349,14 +1342,15 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 			sceneGLTF.primsMeshCache[meshPrimitive.indices] = primMesh;
 		}
 	}
-
 	// make the big vertex cache and compute the offset for each prims
 	std::vector<Vertex> allVertices;
 	std::vector<uint32_t> allIndices;
-	struct offsetPrim{uint32_t offsetVertex, offsetIndex;};
+	struct offsetPrim {
+		uint32_t offsetVertex, offsetIndex;
+	};
 	std::vector<offsetPrim> offsetPrims;
 	uint32_t counterPrim = 0;
-	for(auto &prim: sceneGLTF.primsMeshCache) {
+	for (auto &prim : sceneGLTF.primsMeshCache) {
 		prim.second->id = counterPrim;
 		offsetPrims.push_back({static_cast<uint32_t>(allVertices.size()), static_cast<uint32_t>(allIndices.size())});
 		allVertices.insert(allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end());
@@ -1367,9 +1361,11 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	VkDeviceMemory allVerticesBufferMemory;
 	VkDeviceMemory allIndicesBufferMemory;
 	createVertexBuffer(allVertices, sceneGLTF.allVerticesBuffer, allVerticesBufferMemory);
-	createIndexBuffer(allIndices, sceneGLTF.allIndicesBuffer, allIndicesBufferMemory);	
-	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(), offsetPrims.data());
-	
+	createIndexBuffer(allIndices, sceneGLTF.allIndicesBuffer, allIndicesBufferMemory);
+	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(),
+	             offsetPrims.data());
+
 	// Handle only one big scene
 	std::vector<objectGLTF> scene;
 	for (auto gltf_scene : model.scenes) {

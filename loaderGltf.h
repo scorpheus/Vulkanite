@@ -31,7 +31,7 @@ struct textureGLTF {
 };
 
 struct matGLTF {
-	bool doubleSided;
+	int doubleSided;
 	int albedoTex;
 	int metallicRoughnessTex;
 	int aoTex;
@@ -68,10 +68,10 @@ struct objectGLTF {
 	std::string name;
 	glm::mat4 world{1};
 
-	matGLTF mat;
+	uint32_t mat;
 
 	// Vulkan
-	std::shared_ptr<primMeshGLTF> primMesh;
+	uint32_t primMesh;
 
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;

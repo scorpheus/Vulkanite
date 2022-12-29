@@ -26,12 +26,11 @@ layout (binding = 1) uniform UBOParams {
 } uboParams;
 
 layout(binding = 2) uniform sampler2D envMap;
-layout(binding = 3) uniform sampler2D TexturesMap[];
+layout(binding = 3) uniform sampler2D texturesMap[];
 
 // Material bindings
-
-layout (push_constant) uniform Material {
-	bool doubleSided;
+struct Material{
+	int doubleSided;
 	int albedoTex;
 	int metallicRoughnessTex;
 	int aoTex;
@@ -49,7 +48,13 @@ layout (push_constant) uniform Material {
 	int emissiveTextureSet;
 	vec4 baseColorFactor;
 	vec3 emissiveFactor;
-} material;
+};
+
+layout(binding = 4) buffer MaterialMap {Material v[]; } materialsMap;
+
+layout (push_constant) uniform MaterialID {
+int id;
+} materialID;
 
 layout(location = 0) out vec4 outColor;
 
@@ -493,21 +498,22 @@ vec3 pbrComputeDiffuse(vec3 normal, vec3 diffColor, float occlusion)
 
 // Entry point of the forward pipeline default uber shader (Phong and PBR)
 void main() {
+	Material mat = materialsMap.v[materialID.id];
 
-	vec4 albedo_color = texture(TexturesMap[material.albedoTex], material.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
-	//albedo_color.xyz = albedo_color.xyz * material.baseColorFactor.xyz;
-	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * material.baseColorFactor.xyz;
-	albedo_color.w = albedo_color.w * material.baseColorFactor.w;
+	vec4 albedo_color = texture(texturesMap[mat.albedoTex], mat.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
+	//albedo_color.xyz = albedo_color.xyz * mat.baseColorFactor.xyz;
+	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * mat.baseColorFactor.xyz;
+	albedo_color.w = albedo_color.w * mat.baseColorFactor.w;
 
-	if(material.alphaMask == 2 && albedo_color.a < material.alphaMaskCutoff)
+	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff)
 		discard;
 	 
-	float occlusion = texture(TexturesMap[material.aoTex], material.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
-	float metalness = texture(TexturesMap[material.metallicRoughnessTex], material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * material.metallicFactor;
-	float roughness = texture(TexturesMap[material.metallicRoughnessTex], material.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * material.roughnessFactor;
+	float occlusion = texture(texturesMap[mat.aoTex], mat.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
+	float metalness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * mat.metallicFactor;
+	float roughness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * mat.roughnessFactor;
 
 	
-	vec3 emissive = texture(TexturesMap[material.emissiveTex], material.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * material.emissiveFactor;
+	vec3 emissive = texture(texturesMap[mat.emissiveTex], mat.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * mat.emissiveFactor;
 
 	//
 	vec3 view = (ubo.view * vec4(fragWorldPos, 1.0)).xyz;
@@ -521,8 +527,8 @@ void main() {
 
 	mat3 TBN = mat3(T, B, N);
 	
-	if( material.normalTextureSet >= 0){
-		vec3 tangentNormal = texture(TexturesMap[material.normalTex], material.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * 2.0 - 1.0;			
+	if( mat.normalTextureSet >= 0){
+		vec3 tangentNormal = texture(texturesMap[mat.normalTex], mat.normalTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * 2.0 - 1.0;			
 		N = normalize( TBN *tangentNormal);
 	}
 
@@ -559,6 +565,7 @@ void main() {
 	float opacity = albedo_color.w;
 
 	outColor = vec4(linear2sRGB(color), opacity);
+//	outColor = vec4(fragTexCoord0, 0, 1);
 	//outColor = vec4(diffuse_color + specular_pbr, opacity);
 
 	

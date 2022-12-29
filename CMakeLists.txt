@@ -119,6 +119,7 @@ set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #set(MODEL_GLTF_PATH models/suzanne_metal.glb)
 #set(MODEL_GLTF_PATH models/BoxTextured.glb)
 #set(MODEL_GLTF_PATH models/sponza.glb)
+#set(MODEL_GLTF_PATH models/test_texture.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}

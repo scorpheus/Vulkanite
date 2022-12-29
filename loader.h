@@ -34,7 +34,6 @@ void createUniformBuffers(std::vector<VkBuffer> &uniformBuffers, std::vector<VkD
 void createDescriptorPool(VkDescriptorPool &descriptorPool);
 void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const std::vector<VkBuffer> &uniformBuffers,
-                          const matGLTF &mat,
                           const VkDescriptorSetLayout &descriptorSetLayout,
                           const VkDescriptorPool &descriptorPool);
 
@@ -44,8 +43,10 @@ struct SceneVulkanite {
 	VkBuffer allVerticesBuffer;
 	VkBuffer allIndicesBuffer;
 	vks::Buffer offsetPrimsBuffer;
+	vks::Buffer materialsCacheBuffer;
 
-	std::map<int, std::shared_ptr<textureGLTF>> textureCache;
+	std::map<uint32_t, std::shared_ptr<textureGLTF>> textureCache;
 	std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
+	std::vector<matGLTF> materialsCache;
 };
 extern SceneVulkanite sceneGLTF;
