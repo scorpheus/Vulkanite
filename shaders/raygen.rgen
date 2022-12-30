@@ -7,14 +7,11 @@ layout(binding = 2, set = 0) uniform CameraProperties
 {
 	mat4 viewInverse;
 	mat4 projInverse;
-	vec4 lightPos;
 } cam;
 
 
 struct RayPayload {
 	vec3 color;
-	float distance;
-	vec3 normal;
 	int currentRecursion;
 };
 

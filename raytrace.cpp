@@ -100,7 +100,9 @@ struct UniformData {
 	glm::mat4 viewInverse;
 	glm::mat4 projInverse;
 	glm::vec4 lightPos;
-	int32_t vertexSize;
+	glm::mat4 SHRed;
+	glm::mat4 SHGreen;
+	glm::mat4 SHBlue;
 } uniformData;
 
 vks::Buffer ubo;
@@ -469,6 +471,7 @@ void createDescriptorSets() {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
@@ -511,6 +514,8 @@ void createDescriptorSets() {
 	}
 	VkDescriptorBufferInfo materialsBufferDescriptor{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
 
+	VkDescriptorImageInfo envmapMapInfo{sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
 	std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 		// Binding 0: Top level acceleration structure
 		accelerationStructureWrite,
@@ -528,6 +533,8 @@ void createDescriptorSets() {
 		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), sceneGLTF.textureCache.size()),
 		// Binding 7: material buffer
 		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &materialsBufferDescriptor),
+		// Binding 8: envmap image
+		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &envmapMapInfo),
 	};
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 }
@@ -598,6 +605,8 @@ void createRayTracingPipeline() {
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 6, sceneGLTF.textureCache.size()),
 		// Binding 7: materials buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 7),
+		// Binding 8: envmap Image
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, 8),
 	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -675,15 +684,17 @@ void updateUniformBuffers() {
 	proj[1][1] *= -1;
 	uniformData.projInverse = glm::inverse(proj);
 	uniformData.viewInverse = glm::inverse(camWorld);
-	//uniformData.lightPos = glm::vec4(20, 20, 20, 0.0f);
+	uniformData.lightPos = glm::vec4(20, 20, 20, 0.0f);
 
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count()/100.f;
+	//static auto startTime = std::chrono::high_resolution_clock::now();
+	//auto currentTime = std::chrono::high_resolution_clock::now();
+	//float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count()/100.f;
+	//uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, 20.f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
 
-	uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, 20.f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
-	// Pass the vertex size to the shader for unpacking vertices
-	uniformData.vertexSize = sizeof(Vertex);
+	uniformData.SHRed = {-0.6569198369979858, -0.05074704438447952, 0.11712795495986938, 0.5405354499816895, -0.05074704438447952, 0.6569198369979858, -0.1142701804637909, -0.45706015825271606, 0.11712795495986938, -0.1142701804637909, -1.8876700401306152, 0.3333941698074341, 0.5405354499816895, -0.45706015825271606, 0.3333941698074341, 4.457942962646484};
+	uniformData.SHGreen = {-0.5982603430747986, 0.0008933552308008075, 0.11303829401731491, 0.5236333012580872, 0.0008933552308008075, 0.5982603430747986, -0.09598314762115479, -0.3767010271549225, 0.11303829401731491, -0.09598314762115479, -1.8332494497299194, 0.3257785141468048, 0.5236333012580872, -0.3767010271549225, 0.3257785141468048, 4.3789801597595215};
+	uniformData.SHBlue = {-0.6434987187385559, -0.07664437592029572, 0.10949002951383591, 0.5047624707221985, -0.07664437592029572, 0.6434987187385559, -0.11785311996936798, -0.4755648374557495, 0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623};
+
 	memcpy(ubo.mapped, &uniformData, sizeof(uniformData));
 }
 
@@ -734,8 +745,8 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	copyRegion.srcOffset = {0, 0, 0};
 	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
 	copyRegion.dstOffset = {0, 0, 0};
-	copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
-	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
+	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
 	vkCmdCopyImage(commandBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 	// Transition swap chain image back for presentation

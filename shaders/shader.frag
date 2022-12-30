@@ -17,7 +17,7 @@ layout(binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout (binding = 1) uniform UBOParams {
-	vec4 lightDir;
+	vec4 lightPos;
 	float envRot;
 	float exposure;
 	mat4 SHRed;
@@ -30,22 +30,26 @@ layout(binding = 3) uniform sampler2D texturesMap[];
 
 // Material bindings
 struct Material{
-	int doubleSided;
-	int albedoTex;
-	int metallicRoughnessTex;
-	int aoTex;
-	int normalTex;
-	int emissiveTex;
+	bool doubleSided;
+	uint albedoTex;
+	uint metallicRoughnessTex;
+	uint aoTex;
+	uint normalTex;
+	uint emissiveTex;
+	uint transmissionTex;
 
-	float metallicFactor;	
-	float roughnessFactor;	
-	float alphaMask;	
+	float metallicFactor;
+	float roughnessFactor;
+	float alphaMask;
 	float alphaMaskCutoff;
-	int baseColorTextureSet;
+	float transmissionFactor;
+	float ior;
+	int colorTextureSet;
 	int metallicRoughnessTextureSet;
-	int normalTextureSet;	
+	int normalTextureSet;
 	int occlusionTextureSet;
 	int emissiveTextureSet;
+	int transmissionTextureSet;
 	vec4 baseColorFactor;
 	vec3 emissiveFactor;
 };
@@ -500,11 +504,12 @@ vec3 pbrComputeDiffuse(vec3 normal, vec3 diffColor, float occlusion)
 void main() {
 	Material mat = materialsMap.v[materialID.id];
 
-	vec4 albedo_color = texture(texturesMap[mat.albedoTex], mat.baseColorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
+	vec4 albedo_color = texture(texturesMap[mat.albedoTex], mat.colorTextureSet == 0 ? fragTexCoord0 : fragTexCoord1 );
 	//albedo_color.xyz = albedo_color.xyz * mat.baseColorFactor.xyz;
 	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * mat.baseColorFactor.xyz;
 	albedo_color.w = albedo_color.w * mat.baseColorFactor.w;
 
+	// if alpha mode == MASK (2)
 	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff)
 		discard;
 	 
@@ -565,7 +570,7 @@ void main() {
 	float opacity = albedo_color.w;
 
 	outColor = vec4(linear2sRGB(color), opacity);
-//	outColor = vec4(fragTexCoord0, 0, 1);
+//	outColor = vec4(specular_pbr, 1);
 	//outColor = vec4(diffuse_color + specular_pbr, opacity);
 
 	

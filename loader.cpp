@@ -50,8 +50,6 @@ std::vector<VkBuffer> uniformParamsBuffers;
 std::vector<VkDeviceMemory> uniformParamsBuffersMemory;
 std::vector<void*> uniformParamsBuffersMapped;
 
-textureGLTF envMap;
-
 static std::vector<char> readFile(const std::string &filename) {
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 	auto fileRC = cmrcFS.open(filename);
@@ -242,8 +240,8 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 
 		VkDescriptorImageInfo imageEnvMapInfo;
 		imageEnvMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageEnvMapInfo.imageView = envMap.textureImageView;
-		imageEnvMapInfo.sampler = envMap.textureSampler;
+		imageEnvMapInfo.imageView = sceneGLTF.envMap.textureImageView;
+		imageEnvMapInfo.sampler = sceneGLTF.envMap.textureSampler;
 
 		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
 		imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
@@ -519,13 +517,13 @@ SceneVulkanite sceneGLTF;
 
 
 void loadSceneGLTF() {
-	envMap.name = "envMap";
+	sceneGLTF.envMap.name = "envMap";
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 	auto envmapRC = cmrcFS.open(ENVMAP);
 
-	createTextureImage(reinterpret_cast<const unsigned char*>(envmapRC.cbegin()), envmapRC.size(), envMap.textureImage, envMap.textureImageMemory, envMap.mipLevels, true);
-	envMap.textureImageView = createTextureImageView(envMap.textureImage, envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
-	createTextureSampler(envMap.textureSampler, envMap.mipLevels);
+	createTextureImage(reinterpret_cast<const unsigned char*>(envmapRC.cbegin()), envmapRC.size(), sceneGLTF.envMap.textureImage, sceneGLTF.envMap.textureImageMemory, sceneGLTF.envMap.mipLevels, true);
+	sceneGLTF.envMap.textureImageView = createTextureImageView(sceneGLTF.envMap.textureImage, sceneGLTF.envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
+	createTextureSampler(sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.mipLevels);
 
 	createUniformParamsBuffers();
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)

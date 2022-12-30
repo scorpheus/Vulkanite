@@ -10,6 +10,8 @@
 
 #include "VulkanBuffer.h"
 
+#include <cstring>
+
 namespace vks
 {	
 	/** 

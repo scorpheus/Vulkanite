@@ -31,24 +31,29 @@ struct textureGLTF {
 };
 
 struct matGLTF {
-	int doubleSided;
-	int albedoTex;
-	int metallicRoughnessTex;
-	int aoTex;
-	int normalTex;
-	int emissiveTex;
+	bool doubleSided{false};
+	uint32_t albedoTex{0};
+	uint32_t metallicRoughnessTex{0};
+	uint32_t aoTex{0};
+	uint32_t normalTex{0};
+	uint32_t emissiveTex{0};
+	uint32_t transmissionTex{0};
 
-	float metallicFactor;
-	float roughnessFactor;
-	float alphaMask;
-	float alphaMaskCutoff;
-	int colorTextureSet;
-	int metallicRoughnessTextureSet;
-	int normalTextureSet;
-	int occlusionTextureSet;
-	int emissiveTextureSet;
-	glm::vec4 baseColorFactor;
-	glm::vec3 emissiveFactor;
+	float metallicFactor{1};
+	float roughnessFactor{1};
+	float alphaMask{0};
+	float alphaMaskCutoff{0};
+	float transmissionFactor{0};
+	float ior{1.33f};
+
+	int colorTextureSet{0};
+	int metallicRoughnessTextureSet{0};
+	int normalTextureSet{-1};
+	int occlusionTextureSet{0};
+	int emissiveTextureSet{0};
+	int transmissionTextureSet{0};
+	glm::vec4 baseColorFactor{1, 1, 1, 1};
+	glm::vec3 emissiveFactor{0, 0, 0};
 };
 
 struct primMeshGLTF {

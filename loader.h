@@ -38,6 +38,8 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const VkDescriptorPool &descriptorPool);
 
 struct SceneVulkanite {
+	textureGLTF envMap;
+
 	std::vector<objectGLTF> roots;
 
 	VkBuffer allVerticesBuffer;
@@ -50,3 +52,4 @@ struct SceneVulkanite {
 	std::vector<matGLTF> materialsCache;
 };
 extern SceneVulkanite sceneGLTF;
+

@@ -555,7 +555,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	//
 	std::string dst_path;
-	matGLTF mat{0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}};
+	matGLTF mat;
 
 	// BaseColor Texture
 	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >= 0) {
@@ -597,6 +597,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2])
 	};
 
+
 	if (gltf_mat.alphaMode == "BLEND")
 		mat.alphaMask = 1;
 
@@ -605,8 +606,27 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 		mat.alphaMaskCutoff = gltf_mat.alphaCutoff;
 	}
 
+	// check extension transmission	
+	if (auto KHR_materials_transmission = gltf_mat.extensions.find("KHR_materials_transmission"); KHR_materials_transmission != gltf_mat.extensions.end()) {
+		if (KHR_materials_transmission->second.Has("transmissionFactor"))
+			mat.transmissionFactor = KHR_materials_transmission->second.Get("transmissionFactor").GetNumberAsDouble();
+
+		if (KHR_materials_transmission->second.Has("transmissionTexture")) {
+			auto transmissionTextureInfoIndex = KHR_materials_transmission->second.Get("transmissionTexture").Get("index").GetNumberAsInt();
+			if (auto transmissionTexture = ImportTexture(model, transmissionTextureInfoIndex); transmissionTexture >= 0) {
+				mat.transmissionTex = transmissionTexture;
+				mat.transmissionTextureSet = 0;
+			}
+		}			
+	}
+
+	// check extension transmission
+	if (auto KHR_materials_ior = gltf_mat.extensions.find("KHR_materials_ior "); KHR_materials_ior != gltf_mat.extensions.end()) {
+		mat.ior = KHR_materials_ior->second.Get("ior").GetNumberAsDouble();
+	}
+
 	if (gltf_mat.doubleSided)
-		mat.doubleSided = 1;
+		mat.doubleSided = true;
 
 	return std::move(mat);
 }
@@ -1319,7 +1339,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 
 	// load all materials
 	sceneGLTF.materialsCache.resize(model.materials.size() + 1);
-	sceneGLTF.materialsCache[0] = matGLTF{0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, -1, 0, 0, {1, 1, 1, 1}, {0, 0, 0}};
+	sceneGLTF.materialsCache[0] = matGLTF{};
 
 	int counter = 1;
 	for (const auto &mat : model.materials)
