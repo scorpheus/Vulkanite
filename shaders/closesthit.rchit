@@ -302,8 +302,9 @@ vec3 pbrComputeSpecular(vec3 eye, vec3 normal, vec3 vertex_normal, vec3 tangent,
 	vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;		
 	float tmin = 0.001;
 	float tmax = 10000.0;
-
-	int current_nb_samples = int(max(nbSamples * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0), 1));
+	
+	int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
+	//int current_nb_samples = int(max(nbSamples * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0), 1));
 
 	for (int i = 0; i < current_nb_samples; ++i)
 	{
@@ -616,8 +617,21 @@ void main()
 				eta = mat.ior;
 			} 
 			vec3 refractDir = refract(gl_WorldRayDirectionEXT, forwardNormal, eta);
-			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, refractDir, 10000.0, 0);
-			diffuse_color = mix( diffuse_color, rayPayload.color * albedo_color.xyz,transmission);
+//			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, refractDir, 10000.0, 0);
+//			diffuse_color = mix( diffuse_color, rayPayload.color * albedo_color.xyz,transmission);
+			// try refraction with roughness
+			int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
+			vec3 refractionColor = vec3(0);
+			for (int i = 0; i < current_nb_samples; ++i) {
+				vec2 Xi = Hammersley(i, current_nb_samples);
+
+				vec3 Hn = ImportanceSampleGGX(Xi, refractDir, roughness, T, B);
+
+				// refraction	
+				traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, Hn, 10000.0, 0);
+				refractionColor += rayPayload.color;
+			}
+			diffuse_color = mix(diffuse_color, (refractionColor / float(current_nb_samples)) * albedo_color.xyz,transmission);
 		}
 		rayPayload.currentRecursion -= 1;
 	}

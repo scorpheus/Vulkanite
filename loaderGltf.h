@@ -44,7 +44,7 @@ struct matGLTF {
 	float alphaMask{0};
 	float alphaMaskCutoff{0};
 	float transmissionFactor{0};
-	float ior{1.33f};
+	float ior{1.5f};
 
 	int colorTextureSet{0};
 	int metallicRoughnessTextureSet{0};
