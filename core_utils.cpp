@@ -6,6 +6,7 @@
 
 #include "VulkanBuffer.h"
 
+uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
 VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

@@ -77,7 +77,7 @@ layout (constant_id = 0) const int MAX_RECURSION = 3;
 #define specular_level 0.5
 #define occlusion_intensity 1.0
 
-#define nbSamples 4
+#define nbSamples 8
 
 #define horizonFade 1.3 // 0.0 to 2.0
 
@@ -303,8 +303,9 @@ vec3 pbrComputeSpecular(vec3 eye, vec3 normal, vec3 vertex_normal, vec3 tangent,
 	float tmin = 0.001;
 	float tmax = 10000.0;
 	
-	int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
+	//int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
 	//int current_nb_samples = int(max(nbSamples * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0), 1));
+	int current_nb_samples = rayPayload.currentRecursion == 0 ? nbSamples : 1;
 
 	for (int i = 0; i < current_nb_samples; ++i)
 	{
@@ -571,7 +572,8 @@ void main()
 //	 
 	// dome light shadow
 	// launch multiple shadow ray (YES IT S SLOW BUT JUST FOR FUN)
-	float shadowrayCount = 20.0 * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0);
+	float shadowrayCount = rayPayload.currentRecursion == 0 ? 10 : 1;
+	//float shadowrayCount = 10.0 * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0);
 	float light_intensity_with_shadow = 0.0;
 	for(uint i=0; i< uint(shadowrayCount); ++i){
 		// different random value for each pixel and each frame
@@ -581,7 +583,7 @@ void main()
 		vec3 lightDir = normalize(N + offset);
   
 		// prepare shadow ray
-		uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+		uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 		float rayMin     = 0.001;
 		float rayMax     = 10000.0;  
 		float shadowBias = 0.001;
@@ -619,8 +621,11 @@ void main()
 			vec3 refractDir = refract(gl_WorldRayDirectionEXT, forwardNormal, eta);
 //			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, refractDir, 10000.0, 0);
 //			diffuse_color = mix( diffuse_color, rayPayload.color * albedo_color.xyz,transmission);
+			
 			// try refraction with roughness
-			int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
+			//int current_nb_samples = int(max(clamp(roughness * 3.0 * float(nbSamples), 1.0, float(nbSamples) * 3.0) * ((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 1));
+			//int current_nb_samples = int(max(nbSamples * pow(((MAX_RECURSION-rayPayload.currentRecursion) / float(MAX_RECURSION)), 3.0), 1));
+			int current_nb_samples = rayPayload.currentRecursion == 0 ? nbSamples : 1;
 			vec3 refractionColor = vec3(0);
 			for (int i = 0; i < current_nb_samples; ++i) {
 				vec2 Xi = Hammersley(i, current_nb_samples);

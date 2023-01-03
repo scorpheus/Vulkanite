@@ -12,5 +12,6 @@ void createUniformBuffer();
 void createShaderBindingTables();
 void createDescriptorSets();
 void createRayTracingPipeline();
-void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame);
+void updateUniformBuffersRaytrace();
+void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 }

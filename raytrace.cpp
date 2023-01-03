@@ -68,7 +68,8 @@ struct StorageImage {
 	VkImage image = VK_NULL_HANDLE;
 	VkImageView view = VK_NULL_HANDLE;
 	VkFormat format;
-} storageImage;
+};
+std::vector<StorageImage> storageImages;
 
 // Extends the buffer class and holds information for a shader binding table
 class ShaderBindingTable : public vks::Buffer {
@@ -85,7 +86,7 @@ VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 
 VkPipeline pipeline;
 VkPipelineLayout pipelineLayout;
-VkDescriptorSet descriptorSet;
+std::vector<VkDescriptorSet> descriptorSets;
 VkDescriptorSetLayout descriptorSetLayout;
 
 std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
@@ -334,53 +335,58 @@ void createTopLevelAccelerationStructure() {
 }
 
 void createStorageImage(VkFormat format, VkExtent3D extent) {
-	// Release ressources if image is to be recreated
-	if (storageImage.image != VK_NULL_HANDLE) {
-		vkDestroyImageView(device, storageImage.view, nullptr);
-		vkDestroyImage(device, storageImage.image, nullptr);
-		vkFreeMemory(device, storageImage.memory, nullptr);
-		storageImage = {};
+	storageImages.resize(MAX_FRAMES_IN_FLIGHT);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		// Release ressources if image is to be recreated
+		if (storageImages[i].image != VK_NULL_HANDLE) {
+			vkDestroyImageView(device, storageImages[i].view, nullptr);
+			vkDestroyImage(device, storageImages[i].image, nullptr);
+			vkFreeMemory(device, storageImages[i].memory, nullptr);
+			storageImages[i] = {};
+		}
+
+		VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+		image.imageType = VK_IMAGE_TYPE_2D;
+		image.format = format;
+		image.extent = extent;
+		image.mipLevels = 1;
+		image.arrayLayers = 1;
+		image.samples = VK_SAMPLE_COUNT_1_BIT;
+		image.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImages[i].image));
+
+		VkMemoryRequirements memReqs;
+		vkGetImageMemoryRequirements(device, storageImages[i].image, &memReqs);
+		VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		memoryAllocateInfo.allocationSize = memReqs.size;
+		memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImages[i].memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, storageImages[i].image, storageImages[i].memory, 0));
+
+		VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		colorImageView.format = format;
+		colorImageView.subresourceRange = {};
+		colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		colorImageView.subresourceRange.baseMipLevel = 0;
+		colorImageView.subresourceRange.levelCount = 1;
+		colorImageView.subresourceRange.baseArrayLayer = 0;
+		colorImageView.subresourceRange.layerCount = 1;
+		colorImageView.image = storageImages[i].image;
+		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImages[i].view));
+
+		transitionImageLayout(storageImages[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
 	}
-
-	VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-	image.imageType = VK_IMAGE_TYPE_2D;
-	image.format = format;
-	image.extent = extent;
-	image.mipLevels = 1;
-	image.arrayLayers = 1;
-	image.samples = VK_SAMPLE_COUNT_1_BIT;
-	image.tiling = VK_IMAGE_TILING_OPTIMAL;
-	image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-	image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
-
-	VkMemoryRequirements memReqs;
-	vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
-	VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-	memoryAllocateInfo.allocationSize = memReqs.size;
-	memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImage.memory));
-	VK_CHECK_RESULT(vkBindImageMemory(device, storageImage.image, storageImage.memory, 0));
-
-	VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-	colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	colorImageView.format = format;
-	colorImageView.subresourceRange = {};
-	colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	colorImageView.subresourceRange.baseMipLevel = 0;
-	colorImageView.subresourceRange.levelCount = 1;
-	colorImageView.subresourceRange.baseArrayLayer = 0;
-	colorImageView.subresourceRange.layerCount = 1;
-	colorImageView.image = storageImage.image;
-	VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImage.view));
-
-	transitionImageLayout(storageImage.image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
 }
 
 void deleteStorageImage() {
-	vkDestroyImageView(device, storageImage.view, nullptr);
-	vkDestroyImage(device, storageImage.image, nullptr);
-	vkFreeMemory(device, storageImage.memory, nullptr);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		vkDestroyImageView(device, storageImages[i].view, nullptr);
+		vkDestroyImage(device, storageImages[i].image, nullptr);
+		vkFreeMemory(device, storageImages[i].memory, nullptr);
+	}
 }
 
 uint32_t alignedSize(uint32_t value, uint32_t alignment) { return (value + alignment - 1) & ~(alignment - 1); }
@@ -465,78 +471,82 @@ inline VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet dstSet, VkDescrip
 
 void createDescriptorSets() {
 	std::vector<VkDescriptorPoolSize> poolSizes = {
-		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
-		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
 	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
-	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 
+	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
 	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
-	descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
-	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
+	descriptorSetAllocateInfo.pSetLayouts = layouts.data();
+	descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, descriptorSets.data()));
 
-	VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
-	descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-	descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS.handle;
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+		descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+		descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS.handle;
 
-	VkWriteDescriptorSet accelerationStructureWrite{};
-	accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	// The specialized acceleration structure descriptor has to be chained
-	accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
-	accelerationStructureWrite.dstSet = descriptorSet;
-	accelerationStructureWrite.dstBinding = 0;
-	accelerationStructureWrite.descriptorCount = 1;
-	accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		VkWriteDescriptorSet accelerationStructureWrite{};
+		accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		// The specialized acceleration structure descriptor has to be chained
+		accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
+		accelerationStructureWrite.dstSet = descriptorSets[i];
+		accelerationStructureWrite.dstBinding = 0;
+		accelerationStructureWrite.descriptorCount = 1;
+		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-	VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImage.view, VK_IMAGE_LAYOUT_GENERAL};
-	VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
-	VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
-	VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
-	std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
-	imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
-	for (const auto &t : sceneGLTF.textureCache) {
-		VkDescriptorImageInfo imageTextureMapInfo;
-		imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageTextureMapInfo.imageView = t.second->textureImageView;
-		imageTextureMapInfo.sampler = t.second->textureSampler;
-		imageAllTexturesInfo.push_back(imageTextureMapInfo);
+		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImages[i].view, VK_IMAGE_LAYOUT_GENERAL};
+		VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
+		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
+		imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
+		for (const auto &t : sceneGLTF.textureCache) {
+			VkDescriptorImageInfo imageTextureMapInfo;
+			imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageTextureMapInfo.imageView = t.second->textureImageView;
+			imageTextureMapInfo.sampler = t.second->textureSampler;
+			imageAllTexturesInfo.push_back(imageTextureMapInfo);
+		}
+		VkDescriptorBufferInfo materialsBufferDescriptor{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
+
+		VkDescriptorImageInfo envmapMapInfo{sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+			// Binding 0: Top level acceleration structure
+			accelerationStructureWrite,
+			// Binding 1: Ray tracing result image
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
+			// Binding 2: Uniform data
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &ubo.descriptor),
+			// Binding 3: Scene vertex buffer
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &vertexBufferDescriptor),
+			// Binding 4: Scene index buffer
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &indexBufferDescriptor),
+			// Binding 5: Scene instance offset
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &offsetPrimsBufferDescriptor),
+			// Binding 6: all textures offset
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), sceneGLTF.textureCache.size()),
+			// Binding 7: material buffer
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &materialsBufferDescriptor),
+			// Binding 8: envmap image
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &envmapMapInfo),
+		};
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 	}
-	VkDescriptorBufferInfo materialsBufferDescriptor{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
-
-	VkDescriptorImageInfo envmapMapInfo{sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-	std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-		// Binding 0: Top level acceleration structure
-		accelerationStructureWrite,
-		// Binding 1: Ray tracing result image
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
-		// Binding 2: Uniform data
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &ubo.descriptor),
-		// Binding 3: Scene vertex buffer
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &vertexBufferDescriptor),
-		// Binding 4: Scene index buffer
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &indexBufferDescriptor),
-		// Binding 5: Scene instance offset
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &offsetPrimsBufferDescriptor),
-		// Binding 6: all textures offset
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), sceneGLTF.textureCache.size()),
-		// Binding 7: material buffer
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &materialsBufferDescriptor),
-		// Binding 8: envmap image
-		writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &envmapMapInfo),
-	};
-	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 }
 
 inline VkDescriptorSetLayoutBinding descriptorSetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount = 1) {
@@ -674,12 +684,12 @@ void createRayTracingPipeline() {
 	rayTracingPipelineCI.pStages = shaderStages.data();
 	rayTracingPipelineCI.groupCount = static_cast<uint32_t>(shaderGroups.size());
 	rayTracingPipelineCI.pGroups = shaderGroups.data();
-	rayTracingPipelineCI.maxPipelineRayRecursionDepth = 4;
+	rayTracingPipelineCI.maxPipelineRayRecursionDepth = 10;
 	rayTracingPipelineCI.layout = pipelineLayout;
 	VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline));
 }
 
-void updateUniformBuffers() {
+void updateUniformBuffersRaytrace() {
 	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 	proj[1][1] *= -1;
 	uniformData.projInverse = glm::inverse(proj);
@@ -706,22 +716,21 @@ void createUniformBuffer() {
 		createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &ubo, sizeof(uniformData), &uniformData))
 	VK_CHECK_RESULT(ubo.map())
 
-	updateUniformBuffers();
+	updateUniformBuffersRaytrace();
 }
 
 /*
 	Command buffer generation
 */
-void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
+void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	//if (resized) {
 	//	handleResize();
 	//}
-	updateUniformBuffers();
 
 	VkImageSubresourceRange subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, 0);
 
 	/*
 		Dispatch the ray tracing commands
@@ -735,10 +744,10 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	*/
 
 	// Prepare current swap chain image as transfer destination
-	setImageLayout(commandBuffer, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
 	// Prepare ray tracing output image as transfer source
-	setImageLayout(commandBuffer, storageImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	setImageLayout(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 
 	VkImageCopy copyRegion{};
 	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
@@ -747,12 +756,12 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	copyRegion.dstOffset = {0, 0, 0};
 	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
 	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	vkCmdCopyImage(commandBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	vkCmdCopyImage(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 	// Transition swap chain image back for presentation
-	setImageLayout(commandBuffer, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
+	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
 
 	// Transition ray tracing output image back to general layout
-	setImageLayout(commandBuffer, storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	setImageLayout(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 }
 }

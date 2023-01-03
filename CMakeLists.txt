@@ -85,12 +85,15 @@ compile_glsl_directory(
 	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
 	)
 
-source_group("Shader Sources"  FILES ${GLSL_SOURCES})
-source_group("Shader Headers"  FILES ${GLSL_HEADERS})
+#source_group("Shader Sources"  FILES ${GLSL_SOURCES})
+#source_group("Shader Headers"  FILES ${GLSL_HEADERS})
+file(GLOB SHADERS_FILES "shaders/*.*")
+source_group("Shader Sources"  FILES ${SHADERS_FILES})
+
+file(GLOB SOURCE_FILES "*.h" "*.cpp")
 
 # create Vulkanite project
-file(GLOB SOURCE_FILES "*.h" "*.cpp")
-add_executable(Vulkanite ${SOURCE_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
+add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
 
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/gli)
 
@@ -119,7 +122,7 @@ set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #set(MODEL_GLTF_PATH models/suzanne_metal.glb)
 #set(MODEL_GLTF_PATH models/BoxTextured.glb)
 #set(MODEL_GLTF_PATH models/sponza.glb)
-#set(MODEL_GLTF_PATH models/TransmissionTest.glb)
+set(MODEL_GLTF_PATH models/TransmissionTest.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}

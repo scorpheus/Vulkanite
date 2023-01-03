@@ -145,6 +145,12 @@ private:
 
 		createCommandBuffer();
 		createSyncObjects();
+
+		// record draw
+		uint32_t counter = 0;
+		for(auto& commandBuffer: commandBuffers)
+			recordCommandBuffer(commandBuffer, counter++);
+		
 	}
 
 	void mainLoop() {
@@ -535,22 +541,22 @@ private:
 		VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
 		VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
-		uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-		if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.
+		MAX_FRAMES_IN_FLIGHT = swapChainSupport.capabilities.minImageCount + 1;
+		if (swapChainSupport.capabilities.maxImageCount > 0 && MAX_FRAMES_IN_FLIGHT > swapChainSupport.capabilities.
 		                                                                                     maxImageCount) {
-			imageCount = swapChainSupport.capabilities.maxImageCount;
+			MAX_FRAMES_IN_FLIGHT = swapChainSupport.capabilities.maxImageCount;
 		}
 
 		VkSwapchainCreateInfoKHR createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		createInfo.surface = surface;
 
-		createInfo.minImageCount = imageCount;
+		createInfo.minImageCount = MAX_FRAMES_IN_FLIGHT;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
 		createInfo.imageExtent = extent;
 		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
@@ -575,9 +581,9 @@ private:
 			throw std::runtime_error("failed to create swap chain!");
 		}
 
-		vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-		swapChainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+		vkGetSwapchainImagesKHR(device, swapChain, &MAX_FRAMES_IN_FLIGHT, nullptr);
+		swapChainImages.resize(MAX_FRAMES_IN_FLIGHT);
+		vkGetSwapchainImagesKHR(device, swapChain, &MAX_FRAMES_IN_FLIGHT, swapChainImages.data());
 
 		swapChainImageFormat = surfaceFormat.format;
 		swapChainExtent = extent;
@@ -826,26 +832,26 @@ private:
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // Optional
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // Optional
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
 
-		//rasterize
-	/*	std::array<VkClearValue, 2> clearValues{};
-		clearValues[0].color = {{0.3f, 0.3f, 0.3f, 1.0f}};
-		clearValues[1].depthStencil = {1.0f, 0};
+		////rasterize
+		//std::array<VkClearValue, 2> clearValues{};
+		//clearValues[0].color = {{0.3f, 0.3f, 0.3f, 1.0f}};
+		//clearValues[1].depthStencil = {1.0f, 0};
 
-		VkRenderPassBeginInfo renderPassInfo{};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = renderPass;
-		renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-		renderPassInfo.renderArea.offset = {0, 0};
-		renderPassInfo.renderArea.extent = swapChainExtent;
-		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassInfo.pClearValues = clearValues.data();*/
+		//VkRenderPassBeginInfo renderPassInfo{};
+		//renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		//renderPassInfo.renderPass = renderPass;
+		//renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+		//renderPassInfo.renderArea.offset = {0, 0};
+		//renderPassInfo.renderArea.extent = swapChainExtent;
+		//renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		//renderPassInfo.pClearValues = clearValues.data();
 
 		//vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -867,8 +873,8 @@ private:
 		//drawSceneGLTF(commandBuffer, currentFrame);
 
 		//vkCmdEndRenderPass(commandBuffer);
+		//
 
-		// raytrace
 		vulkanite_raytrace::buildCommandBuffers(commandBuffer, imageIndex);
 
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -882,13 +888,11 @@ private:
 		lastTimeFrame = currentTimeFrame;
 
 		updateCamera(window, deltaTime);
-
+		
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame],
-		                                        VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 			recreateSwapChain();
@@ -896,14 +900,13 @@ private:
 		} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
-
+		//// record draw 
+		//vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+		//recordCommandBuffer(commandBuffers[currentFrame], currentFrame);
+		
+		vulkanite_raytrace::updateUniformBuffersRaytrace();
 		vkResetFences(device, 1, &inFlightFences[currentFrame]);
-
-		vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-
-		// record draw triangle
-		recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
-
+		
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
