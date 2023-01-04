@@ -62,14 +62,7 @@ struct AccelerationStructure {
 	VkBuffer buffer;
 };
 
-// Holds information for a storage image that the ray tracing shaders output to
-struct StorageImage {
-	VkDeviceMemory memory = VK_NULL_HANDLE;
-	VkImage image = VK_NULL_HANDLE;
-	VkImageView view = VK_NULL_HANDLE;
-	VkFormat format;
-};
-std::vector<StorageImage> storageImages;
+std::vector<StorageImage> storageImagesRaytrace, storageImagesRaytraceDepth, storageImagesRaytraceMotionVector, storageImagesRaytraceExposure;
 
 // Extends the buffer class and holds information for a shader binding table
 class ShaderBindingTable : public vks::Buffer {
@@ -262,7 +255,7 @@ void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
 void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const glm::mat4 &world) {
 	VkAccelerationStructureInstanceKHR instance{};
 	for (int i = 0; i < 3; i++)
-		for (int j = 0; j < 4; j++) 
+		for (int j = 0; j < 4; j++)
 			instance.transform.matrix[i][j] = world[j][i];
 
 	instance.instanceCustomIndex = sceneGLTF.primsMeshCache[obj.primMesh]->id << 16 | obj.mat; // gl_InstanceCustomIndexEXT in the shader
@@ -278,7 +271,8 @@ void createTopLevelAccelerationStructure() {
 	vks::Buffer instancesBuffer;
 	VK_CHECK_RESULT(
 		createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &instancesBuffer, sizeof(VkAccelerationStructureInstanceKHR)*instances.size(), instances.data()))
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &instancesBuffer, sizeof(VkAccelerationStructureInstanceKHR)*instances.size(), instances.
+			data()))
 
 	VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
 	instanceDataDeviceAddress.deviceAddress = getBufferDeviceAddress(instancesBuffer.buffer);
@@ -335,57 +329,64 @@ void createTopLevelAccelerationStructure() {
 }
 
 void createStorageImage(VkFormat format, VkExtent3D extent) {
-	storageImages.resize(MAX_FRAMES_IN_FLIGHT);
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		// Release ressources if image is to be recreated
-		if (storageImages[i].image != VK_NULL_HANDLE) {
-			vkDestroyImageView(device, storageImages[i].view, nullptr);
-			vkDestroyImage(device, storageImages[i].image, nullptr);
-			vkFreeMemory(device, storageImages[i].memory, nullptr);
-			storageImages[i] = {};
+	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace) {
+		storageImagesRaytrace.resize(MAX_FRAMES_IN_FLIGHT);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			// Release ressources if image is to be recreated
+			if (storageImagesRaytrace[i].image != VK_NULL_HANDLE) {
+				vkDestroyImageView(device, storageImagesRaytrace[i].view, nullptr);
+				vkDestroyImage(device, storageImagesRaytrace[i].image, nullptr);
+				vkFreeMemory(device, storageImagesRaytrace[i].memory, nullptr);
+				storageImagesRaytrace[i] = {};
+			}
+
+			VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+			image.imageType = VK_IMAGE_TYPE_2D;
+			image.format = format;
+			image.extent = extent;
+			image.mipLevels = 1;
+			image.arrayLayers = 1;
+			image.samples = VK_SAMPLE_COUNT_1_BIT;
+			image.tiling = VK_IMAGE_TILING_OPTIMAL;
+			image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+			image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImagesRaytrace[i].image));
+
+			VkMemoryRequirements memReqs;
+			vkGetImageMemoryRequirements(device, storageImagesRaytrace[i].image, &memReqs);
+			VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+			memoryAllocateInfo.allocationSize = memReqs.size;
+			memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImagesRaytrace[i].memory));
+			VK_CHECK_RESULT(vkBindImageMemory(device, storageImagesRaytrace[i].image, storageImagesRaytrace[i].memory, 0));
+
+			VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+			colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			colorImageView.format = format;
+			colorImageView.subresourceRange = {};
+			colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			colorImageView.subresourceRange.baseMipLevel = 0;
+			colorImageView.subresourceRange.levelCount = 1;
+			colorImageView.subresourceRange.baseArrayLayer = 0;
+			colorImageView.subresourceRange.layerCount = 1;
+			colorImageView.image = storageImagesRaytrace[i].image;
+			VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImagesRaytrace[i].view));
+
+			transitionImageLayout(storageImagesRaytrace[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
 		}
+	};
 
-		VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-		image.imageType = VK_IMAGE_TYPE_2D;
-		image.format = format;
-		image.extent = extent;
-		image.mipLevels = 1;
-		image.arrayLayers = 1;
-		image.samples = VK_SAMPLE_COUNT_1_BIT;
-		image.tiling = VK_IMAGE_TILING_OPTIMAL;
-		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImages[i].image));
-
-		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, storageImages[i].image, &memReqs);
-		VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-		memoryAllocateInfo.allocationSize = memReqs.size;
-		memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImages[i].memory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, storageImages[i].image, storageImages[i].memory, 0));
-
-		VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		colorImageView.format = format;
-		colorImageView.subresourceRange = {};
-		colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		colorImageView.subresourceRange.baseMipLevel = 0;
-		colorImageView.subresourceRange.levelCount = 1;
-		colorImageView.subresourceRange.baseArrayLayer = 0;
-		colorImageView.subresourceRange.layerCount = 1;
-		colorImageView.image = storageImages[i].image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImages[i].view));
-
-		transitionImageLayout(storageImages[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
-	}
+	f(storageImagesRaytrace);
+	f(storageImagesRaytraceDepth);
+	f(storageImagesRaytraceMotionVector);
+	f(storageImagesRaytraceExposure);
 }
 
 void deleteStorageImage() {
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		vkDestroyImageView(device, storageImages[i].view, nullptr);
-		vkDestroyImage(device, storageImages[i].image, nullptr);
-		vkFreeMemory(device, storageImages[i].memory, nullptr);
+		vkDestroyImageView(device, storageImagesRaytrace[i].view, nullptr);
+		vkDestroyImage(device, storageImagesRaytrace[i].image, nullptr);
+		vkFreeMemory(device, storageImagesRaytrace[i].memory, nullptr);
 	}
 }
 
@@ -440,7 +441,7 @@ void createShaderBindingTables() {
 
 	// Copy handles
 	memcpy(shaderBindingTables.raygen.mapped, shaderHandleStorage.data(), handleSize);
-	memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize*2);
+	memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize * 2);
 	memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
 }
 
@@ -471,7 +472,7 @@ inline VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet dstSet, VkDescrip
 
 void createDescriptorSets() {
 	std::vector<VkDescriptorPoolSize> poolSizes = {
-		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 4 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
@@ -508,7 +509,12 @@ void createDescriptorSets() {
 		accelerationStructureWrite.descriptorCount = 1;
 		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImages[i].view, VK_IMAGE_LAYOUT_GENERAL};
+		std::vector<VkDescriptorImageInfo> storageImageDescriptor{
+			{VK_NULL_HANDLE, storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL},
+			{VK_NULL_HANDLE, storageImagesRaytraceDepth[i].view, VK_IMAGE_LAYOUT_GENERAL},
+			{VK_NULL_HANDLE, storageImagesRaytraceMotionVector[i].view, VK_IMAGE_LAYOUT_GENERAL},
+			{VK_NULL_HANDLE, storageImagesRaytraceExposure[i].view, VK_IMAGE_LAYOUT_GENERAL}
+		};
 		VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
@@ -529,7 +535,7 @@ void createDescriptorSets() {
 			// Binding 0: Top level acceleration structure
 			accelerationStructureWrite,
 			// Binding 1: Ray tracing result image
-			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, storageImageDescriptor.data(), storageImageDescriptor.size()),
 			// Binding 2: Uniform data
 			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &ubo.descriptor),
 			// Binding 3: Scene vertex buffer
@@ -601,7 +607,7 @@ void createRayTracingPipeline() {
 		// Binding 0: Acceleration structure
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0),
 		// Binding 1: Storage image
-		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 1),
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 1, 4),
 		// Binding 2: Uniform buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		                           VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, 2),
@@ -665,7 +671,7 @@ void createRayTracingPipeline() {
 		shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
 		shaderGroups.push_back(shaderGroup);
 	}
-	
+
 	// Closest hit group
 	{
 		shaderStages.push_back(loadShader("spv/closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
@@ -701,9 +707,18 @@ void updateUniformBuffersRaytrace() {
 	//float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count()/100.f;
 	//uniformData.lightPos = glm::vec4(cos(glm::radians(timer * 360.0f)) * 40.0f, 20.f, 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f, 0.0f);
 
-	uniformData.SHRed = {-0.6569198369979858, -0.05074704438447952, 0.11712795495986938, 0.5405354499816895, -0.05074704438447952, 0.6569198369979858, -0.1142701804637909, -0.45706015825271606, 0.11712795495986938, -0.1142701804637909, -1.8876700401306152, 0.3333941698074341, 0.5405354499816895, -0.45706015825271606, 0.3333941698074341, 4.457942962646484};
-	uniformData.SHGreen = {-0.5982603430747986, 0.0008933552308008075, 0.11303829401731491, 0.5236333012580872, 0.0008933552308008075, 0.5982603430747986, -0.09598314762115479, -0.3767010271549225, 0.11303829401731491, -0.09598314762115479, -1.8332494497299194, 0.3257785141468048, 0.5236333012580872, -0.3767010271549225, 0.3257785141468048, 4.3789801597595215};
-	uniformData.SHBlue = {-0.6434987187385559, -0.07664437592029572, 0.10949002951383591, 0.5047624707221985, -0.07664437592029572, 0.6434987187385559, -0.11785311996936798, -0.4755648374557495, 0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623};
+	uniformData.SHRed = {
+		-0.6569198369979858, -0.05074704438447952, 0.11712795495986938, 0.5405354499816895, -0.05074704438447952, 0.6569198369979858, -0.1142701804637909, -0.45706015825271606,
+		0.11712795495986938, -0.1142701804637909, -1.8876700401306152, 0.3333941698074341, 0.5405354499816895, -0.45706015825271606, 0.3333941698074341, 4.457942962646484
+	};
+	uniformData.SHGreen = {
+		-0.5982603430747986, 0.0008933552308008075, 0.11303829401731491, 0.5236333012580872, 0.0008933552308008075, 0.5982603430747986, -0.09598314762115479, -0.3767010271549225,
+		0.11303829401731491, -0.09598314762115479, -1.8332494497299194, 0.3257785141468048, 0.5236333012580872, -0.3767010271549225, 0.3257785141468048, 4.3789801597595215
+	};
+	uniformData.SHBlue = {
+		-0.6434987187385559, -0.07664437592029572, 0.10949002951383591, 0.5047624707221985, -0.07664437592029572, 0.6434987187385559, -0.11785311996936798, -0.4755648374557495,
+		0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623
+	};
 
 	memcpy(ubo.mapped, &uniformData, sizeof(uniformData));
 }
@@ -736,32 +751,31 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 		Dispatch the ray tracing commands
 	*/
 	VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion,
-	                  &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, swapChainExtent.width, swapChainExtent.height, 1);
+	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion, &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1);
 
-	/*
-		Copy ray tracing output to swap chain image
-	*/
+	///*
+	//	Copy ray tracing output to swap chain image
+	//*/
 
-	// Prepare current swap chain image as transfer destination
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+	//// Prepare current swap chain image as transfer destination
+	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
-	// Prepare ray tracing output image as transfer source
-	setImageLayout(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	//// Prepare ray tracing output image as transfer source
+	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 
-	VkImageCopy copyRegion{};
-	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.srcOffset = {0, 0, 0};
-	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.dstOffset = {0, 0, 0};
-	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
-	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	vkCmdCopyImage(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	//VkImageCopy copyRegion{};
+	//copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	//copyRegion.srcOffset = {0, 0, 0};
+	//copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	//copyRegion.dstOffset = {0, 0, 0};
+	////copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
+	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+	//vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-	// Transition swap chain image back for presentation
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
+	//// Transition swap chain image back for presentation
+	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
 
-	// Transition ray tracing output image back to general layout
-	setImageLayout(commandBuffer, storageImages[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	//// Transition ray tracing output image back to general layout
+	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 }
 }

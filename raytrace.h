@@ -14,4 +14,14 @@ void createDescriptorSets();
 void createRayTracingPipeline();
 void updateUniformBuffersRaytrace();
 void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+
+// Holds information for a storage image that the ray tracing shaders output to
+struct StorageImage {
+	VkDeviceMemory memory = VK_NULL_HANDLE;
+	VkImage image = VK_NULL_HANDLE;
+	VkImageView view = VK_NULL_HANDLE;
+	VkFormat format;
+};
+extern std::vector<StorageImage> storageImagesRaytrace, storageImagesRaytraceDepth, storageImagesRaytraceMotionVector, storageImagesRaytraceExposure;
+
 }

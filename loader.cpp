@@ -560,7 +560,7 @@ void loadSceneGLTF() {
 
 	vulkanite_raytrace::createTopLevelAccelerationStructure();
 
-	vulkanite_raytrace::createStorageImage(swapChainImageFormat, {swapChainExtent.width, swapChainExtent.height, 1});
+	vulkanite_raytrace::createStorageImage(swapChainImageFormat, {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1});
 	vulkanite_raytrace::createUniformBuffer();
 	vulkanite_raytrace::createRayTracingPipeline();
 	vulkanite_raytrace::createShaderBindingTables();

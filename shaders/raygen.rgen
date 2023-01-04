@@ -2,7 +2,13 @@
 #extension GL_EXT_ray_tracing : require
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
+
+#define IMAGE_COLOR 0
+#define IMAGE_DEPTH 1
+#define IMAGE_MOTIONVECTOR 2
+#define IMAGE_EXPOSURE 3
+
+layout(binding = 1, set = 0, rgba8) uniform image2D image[];
 layout(binding = 2, set = 0) uniform CameraProperties 
 {
 	mat4 viewInverse;
@@ -12,6 +18,7 @@ layout(binding = 2, set = 0) uniform CameraProperties
 
 struct RayPayload {
 	vec3 color;
+	float depth;
 	int currentRecursion;
 };
 
@@ -51,8 +58,12 @@ void main()
 	float tmax = 10000.0;
 
 	rayPayload.currentRecursion = 0;
+	rayPayload.depth = tmax;
 
 	traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(linear2sRGB(rayPayload.color), 0.0));
+	imageStore(image[IMAGE_COLOR], ivec2(gl_LaunchIDEXT.xy), vec4(linear2sRGB(rayPayload.color), 0.0));
+	imageStore(image[IMAGE_DEPTH], ivec2(gl_LaunchIDEXT.xy), vec4(rayPayload.depth, rayPayload.depth, rayPayload.depth, 0.0));
+	imageStore(image[IMAGE_MOTIONVECTOR], ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+	imageStore(image[IMAGE_EXPOSURE], ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
 }

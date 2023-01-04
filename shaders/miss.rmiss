@@ -3,6 +3,7 @@
 
 struct RayPayload {
 	vec3 color;
+	float depth;
 	int currentRecursion;
 };
 

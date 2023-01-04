@@ -4,6 +4,7 @@
 
 struct RayPayload {
 	vec3 color;
+	float depth;
 	int currentRecursion;
 };
 
@@ -500,10 +501,10 @@ void main()
 	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * mat.baseColorFactor.xyz;
 	albedo_color.w = albedo_color.w * mat.baseColorFactor.w;
 	// alpha mask
-	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff){	
+	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff){	 
 		rayPayload.currentRecursion += 1;
 		if(rayPayload.currentRecursion < 10)		
-			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT, 0.001, gl_WorldRayDirectionEXT, 10000.0, 0);
+			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, gl_WorldRayDirectionEXT, 10000.0, 0);
 		else
 			rayPayload.color = vec3(0,1,0);
 		rayPayload.currentRecursion -= 1;
@@ -645,4 +646,5 @@ void main()
 
 	// Basic lighting
 	rayPayload.color = color;
+	rayPayload.depth = gl_HitTEXT;
 }

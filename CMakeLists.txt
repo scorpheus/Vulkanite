@@ -10,6 +10,8 @@ include(GetPrerequisites)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
@@ -49,8 +51,9 @@ endif(MSVC)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325 draco/1.5.5 ktx/4.0.0 libbasisu/1.15.0
-					GENERATORS cmake_find_package_multi)
+conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 fmt/9.1.0 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325 draco/1.5.5 ktx/4.0.0 libbasisu/1.15.0
+					GENERATORS cmake_find_package_multi
+                    OPTIONS spdlog:wchar_support=True)
 					
 foreach(TYPE Debug RelWithDebInfo Release)
 	conan_cmake_autodetect(settings BUILD_TYPE ${TYPE})
@@ -63,6 +66,7 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
 find_package(tinyobjloader REQUIRED)
+find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tinygltf REQUIRED)
@@ -72,7 +76,7 @@ find_package(ktx REQUIRED)
 find_package(libbasisu REQUIRED)
 
 
-link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
+link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
 
 # shaders
 include(cmake/utilities.cmake)
@@ -83,23 +87,16 @@ compile_glsl_directory(
 	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
 	VULKAN_TARGET "vulkan1.3"
 	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
-	)
-
-#source_group("Shader Sources"  FILES ${GLSL_SOURCES})
-#source_group("Shader Headers"  FILES ${GLSL_HEADERS})
-file(GLOB SHADERS_FILES "shaders/*.*")
-source_group("Shader Sources"  FILES ${SHADERS_FILES})
+)
 
 file(GLOB SOURCE_FILES "*.h" "*.cpp")
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
 
-target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/gli)
-
 find_package(Vulkan)
 if(Vulkan_FOUND)
-	target_link_libraries(Vulkanite PUBLIC ${Vulkan_LIBRARY})
+	target_link_libraries(Vulkanite ${Vulkan_LIBRARY})
 	target_include_directories(Vulkanite PUBLIC ${Vulkan_INCLUDE_DIRS})
 endif()
 
@@ -109,6 +106,7 @@ if(WIN32)
 	add_compile_options(/permissive- /std:c++latest)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Vulkanite)
 	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
+	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 
@@ -122,7 +120,7 @@ set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
 #set(MODEL_GLTF_PATH models/suzanne_metal.glb)
 #set(MODEL_GLTF_PATH models/BoxTextured.glb)
 #set(MODEL_GLTF_PATH models/sponza.glb)
-set(MODEL_GLTF_PATH models/TransmissionTest.glb)
+#set(MODEL_GLTF_PATH models/TransmissionTest.glb)
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
 	${ENVMAP}
@@ -135,8 +133,14 @@ cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc
 	spv/shader.vert.spv
 	spv/shadow.rmiss.spv
 )
-target_link_libraries(Vulkanite PRIVATE gltf-resources)
+set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_link_libraries(Vulkanite gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
+
+# dlss
+target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/x86_64)
+target_link_libraries(Vulkanite debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
+target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
 
 # modify where cmake install directory
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix" FORCE)

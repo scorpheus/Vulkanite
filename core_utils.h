@@ -25,8 +25,9 @@ namespace vks {
 struct Buffer;
 }
 
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
+const uint32_t WIDTH = 1024;
+const uint32_t HEIGHT = 768;
+const float DLSS_SCALE = 0.75;
 
 extern uint32_t MAX_FRAMES_IN_FLIGHT;
 

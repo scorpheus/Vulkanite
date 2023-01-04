@@ -1,0 +1,3 @@
+[submodule "extern/DLSS"]
+	path = extern/DLSS
+	url = https://github.com/NVIDIA/DLSS.git

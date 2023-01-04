@@ -22,11 +22,12 @@
 #include <spdlog/spdlog.h>
 
 #include "camera.h"
+#include "dlss.h"
 #include "loader.h"
 #include "raytrace.h"
 
 const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-const std::vector<const char*> deviceExtensions = {
+std::vector<const char*> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
@@ -146,10 +147,14 @@ private:
 		createCommandBuffer();
 		createSyncObjects();
 
-		// record draw
-		uint32_t counter = 0;
-		for(auto& commandBuffer: commandBuffers)
-			recordCommandBuffer(commandBuffer, counter++);
+		//// record draw
+		//uint32_t counter = 0;
+		//for(auto& commandBuffer: commandBuffers) {
+		//	recordCommandBuffer(commandBuffer, counter++);
+		//}
+
+		// dlss
+		initDLSS();
 		
 	}
 
@@ -280,6 +285,20 @@ private:
 		if (enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		}
+
+		// DLSS get extensions needed
+		unsigned int OutInstanceExtCount;
+		const char **OutInstanceExts;
+		unsigned int OutDeviceExtCount;
+		const char **OutDeviceExts;
+		getExtensionsNeeded(&OutInstanceExtCount, &OutInstanceExts, &OutDeviceExtCount, &OutDeviceExts);
+		std::vector<const char *> extensionsInstanceDLSS(OutInstanceExts, OutInstanceExts + OutInstanceExtCount);
+		std::vector<const char *> extensionsDeviceDLSS(OutDeviceExts, OutDeviceExts + OutDeviceExtCount);
+		// be sure to remove "VK_EXT_buffer_device_address" because we use "VK_KHR_buffer_device_address"
+		std::erase_if(extensionsDeviceDLSS, [](const char *a) { return std::strcmp(a, "VK_EXT_buffer_device_address") == 0; });
+
+		extensions.insert(extensions.end(), extensionsInstanceDLSS.begin(), extensionsInstanceDLSS.end());
+		deviceExtensions.insert(deviceExtensions.end(), extensionsDeviceDLSS.begin(), extensionsDeviceDLSS.end());		
 
 		return extensions;
 	}
@@ -877,6 +896,9 @@ private:
 
 		vulkanite_raytrace::buildCommandBuffers(commandBuffer, imageIndex);
 
+		RenderDLSS(commandBuffer, imageIndex, 1.0, false, false);
+
+
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 			throw std::runtime_error("failed to record command buffer!");
 		}
@@ -900,13 +922,15 @@ private:
 		} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
+
+		vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
 		//// record draw 
-		//vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-		//recordCommandBuffer(commandBuffers[currentFrame], currentFrame);
+		vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+		recordCommandBuffer(commandBuffers[currentFrame], currentFrame);
 		
 		vulkanite_raytrace::updateUniformBuffersRaytrace();
-		vkResetFences(device, 1, &inFlightFences[currentFrame]);
-		
+
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
