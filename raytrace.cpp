@@ -10,7 +10,7 @@
 #include <fmt/core.h>
 
 #include "camera.h"
-#include "loader.h"
+#include "rasterizer.h"
 
 namespace vulkanite_raytrace {
 // Function pointers for ray tracing related stuff
@@ -62,7 +62,7 @@ struct AccelerationStructure {
 	VkBuffer buffer;
 };
 
-std::vector<StorageImage> storageImagesRaytrace, storageImagesRaytraceDepth, storageImagesRaytraceMotionVector, storageImagesRaytraceExposure;
+std::vector<StorageImage> storageImagesRaytrace, storageImagesRaytraceDepth, storageImagesRaytraceMotionVector;
 
 // Extends the buffer class and holds information for a shader binding table
 class ShaderBindingTable : public vks::Buffer {
@@ -97,6 +97,7 @@ struct UniformData {
 	glm::mat4 SHRed;
 	glm::mat4 SHGreen;
 	glm::mat4 SHBlue;
+	uint32_t frameID;
 } uniformData;
 
 vks::Buffer ubo;
@@ -329,7 +330,7 @@ void createTopLevelAccelerationStructure() {
 }
 
 void createStorageImage(VkFormat format, VkExtent3D extent) {
-	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace) {
+	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace, VkFormat format) {
 		storageImagesRaytrace.resize(MAX_FRAMES_IN_FLIGHT);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			// Release ressources if image is to be recreated
@@ -376,10 +377,9 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 		}
 	};
 
-	f(storageImagesRaytrace);
-	f(storageImagesRaytraceDepth);
-	f(storageImagesRaytraceMotionVector);
-	f(storageImagesRaytraceExposure);
+	f(storageImagesRaytrace, format);
+	f(storageImagesRaytraceDepth, VK_FORMAT_R32_SFLOAT);
+	f(storageImagesRaytraceMotionVector, VK_FORMAT_R32G32_SFLOAT);
 }
 
 void deleteStorageImage() {
@@ -472,7 +472,7 @@ inline VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet dstSet, VkDescrip
 
 void createDescriptorSets() {
 	std::vector<VkDescriptorPoolSize> poolSizes = {
-		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 4 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
+		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)},
@@ -509,12 +509,7 @@ void createDescriptorSets() {
 		accelerationStructureWrite.descriptorCount = 1;
 		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-		std::vector<VkDescriptorImageInfo> storageImageDescriptor{
-			{VK_NULL_HANDLE, storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL},
-			{VK_NULL_HANDLE, storageImagesRaytraceDepth[i].view, VK_IMAGE_LAYOUT_GENERAL},
-			{VK_NULL_HANDLE, storageImagesRaytraceMotionVector[i].view, VK_IMAGE_LAYOUT_GENERAL},
-			{VK_NULL_HANDLE, storageImagesRaytraceExposure[i].view, VK_IMAGE_LAYOUT_GENERAL}
-		};
+		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
 		VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
@@ -535,7 +530,7 @@ void createDescriptorSets() {
 			// Binding 0: Top level acceleration structure
 			accelerationStructureWrite,
 			// Binding 1: Ray tracing result image
-			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, storageImageDescriptor.data(), storageImageDescriptor.size()),
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
 			// Binding 2: Uniform data
 			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &ubo.descriptor),
 			// Binding 3: Scene vertex buffer
@@ -607,7 +602,7 @@ void createRayTracingPipeline() {
 		// Binding 0: Acceleration structure
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0),
 		// Binding 1: Storage image
-		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 1, 4),
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 1, 1),
 		// Binding 2: Uniform buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		                           VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, 2),
@@ -695,11 +690,39 @@ void createRayTracingPipeline() {
 	VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline));
 }
 
-void updateUniformBuffersRaytrace() {
-	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
+void updateUniformBuffersRaytrace(uint32_t frameIndex) {
+		
+	auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width * DLSS_SCALE) / static_cast<float>(swapChainExtent.height * DLSS_SCALE), 0.001f, 10000.f);
 	proj[1][1] *= -1;
 	uniformData.projInverse = glm::inverse(proj);
-	uniformData.viewInverse = glm::inverse(camWorld);
+
+
+	// test jitter
+	const glm::mat4 inverted = glm::inverse(camWorld);
+	const glm::vec3 right = normalize(glm::vec3(inverted[0]));
+	const glm::vec3 top = normalize(glm::vec3(inverted[1]));
+
+	// FPS camera:  RotationX(pitch) * RotationY(yaw)
+	glm::quat qPitch = glm::angleAxis(pitch, glm::vec3(1, 0, 0));
+	glm::quat qYaw = glm::angleAxis(yaw, glm::vec3(0, 1, 0));
+	glm::quat qRoll = glm::angleAxis(roll, glm::vec3(0, 0, 1));
+
+	// For a FPS camera we can omit roll
+	glm::quat orientation = qPitch * qYaw;
+	orientation = glm::normalize(orientation);
+	glm::mat4 rotate = glm::mat4_cast(orientation);
+	
+	auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE)), jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE));
+
+	// Transform jitter vector from clip space to world space
+	float jitterX = (uniformData.projInverse * glm::vec4(jitter_screen.x, 0.0, 0.0, 1)).x;
+	float jitterY = (uniformData.projInverse * glm::vec4(0.0, jitter_screen.y, 0.0, 1)).y;
+
+	glm::mat4 translate = glm::mat4(1.0f);
+	translate = glm::translate(translate, translation + right * jitterX + top * jitterY);
+	auto camWorldJitter = rotate * translate;
+	
+	uniformData.viewInverse = glm::inverse(camWorldJitter);
 	uniformData.lightPos = glm::vec4(20, 20, 20, 0.0f);
 
 	//static auto startTime = std::chrono::high_resolution_clock::now();
@@ -719,6 +742,7 @@ void updateUniformBuffersRaytrace() {
 		-0.6434987187385559, -0.07664437592029572, 0.10949002951383591, 0.5047624707221985, -0.07664437592029572, 0.6434987187385559, -0.11785311996936798, -0.4755648374557495,
 		0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623
 	};
+	uniformData.frameID = frameIndex;
 
 	memcpy(ubo.mapped, &uniformData, sizeof(uniformData));
 }
@@ -731,7 +755,7 @@ void createUniformBuffer() {
 		createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &ubo, sizeof(uniformData), &uniformData))
 	VK_CHECK_RESULT(ubo.map())
 
-	updateUniformBuffersRaytrace();
+	updateUniformBuffersRaytrace(0);
 }
 
 /*
@@ -753,29 +777,29 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
 	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion, &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1);
 
-	///*
-	//	Copy ray tracing output to swap chain image
-	//*/
+	/*
+		Copy ray tracing output to swap chain image
+	*/
 
-	//// Prepare current swap chain image as transfer destination
-	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+	// Prepare current swap chain image as transfer destination
+	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
-	//// Prepare ray tracing output image as transfer source
-	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	// Prepare ray tracing output image as transfer source
+	setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 
-	//VkImageCopy copyRegion{};
-	//copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	//copyRegion.srcOffset = {0, 0, 0};
-	//copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	//copyRegion.dstOffset = {0, 0, 0};
-	////copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
+	VkImageCopy copyRegion{};
+	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	copyRegion.srcOffset = {0, 0, 0};
+	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	copyRegion.dstOffset = {0, 0, 0};
+	copyRegion.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
 	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	//vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-	//// Transition swap chain image back for presentation
-	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
+	// Transition swap chain image back for presentation
+	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
 
-	//// Transition ray tracing output image back to general layout
-	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	// Transition ray tracing output image back to general layout
+	setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 }
 }

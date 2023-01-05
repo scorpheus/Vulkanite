@@ -39,8 +39,19 @@ extern VkQueue graphicsQueue;
 extern VkQueue presentQueue;
 extern VkCommandPool commandPool;
 
+extern VkImage colorImage;
+extern VkDeviceMemory colorImageMemory;
+extern VkImageView colorImageView;
+
+extern VkImage depthImage;
+extern VkDeviceMemory depthImageMemory;
+extern VkImageView depthImageView;
+extern VkFormat depthFormat;
+
+
 extern std::vector<VkImage> swapChainImages;
 extern VkFormat swapChainImageFormat;
+extern std::vector<VkFramebuffer> swapChainFramebuffers;
 
 extern VkRenderPass renderPass;
 extern VkSampleCountFlagBits msaaSamples;

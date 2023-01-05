@@ -23,7 +23,7 @@
 
 #include "camera.h"
 #include "dlss.h"
-#include "loader.h"
+#include "rasterizer.h"
 #include "raytrace.h"
 
 const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -91,16 +91,7 @@ private:
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
 	std::vector<VkImageView> swapChainImageViews;
-	std::vector<VkFramebuffer> swapChainFramebuffers;
 	std::vector<VkCommandBuffer> commandBuffers;
-
-	VkImage colorImage;
-	VkDeviceMemory colorImageMemory;
-	VkImageView colorImageView;
-
-	VkImage depthImage;
-	VkDeviceMemory depthImageMemory;
-	VkImageView depthImageView;
 
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -108,7 +99,7 @@ private:
 
 	bool framebufferResized = false;
 
-	uint32_t currentFrame = 0;
+	uint32_t currentFrame = 0, frameIndex = 0;
 
 	void initWindow() {
 		glfwInit();
@@ -802,7 +793,7 @@ private:
 	}
 
 	void createDepthResources() {
-		VkFormat depthFormat = findDepthFormat();
+		depthFormat = findDepthFormat();
 
 		createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL,
 		            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage,
@@ -858,41 +849,41 @@ private:
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
 
-		////rasterize
-		//std::array<VkClearValue, 2> clearValues{};
-		//clearValues[0].color = {{0.3f, 0.3f, 0.3f, 1.0f}};
-		//clearValues[1].depthStencil = {1.0f, 0};
+		//rasterize
+		std::array<VkClearValue, 2> clearValues{};
+		clearValues[0].color = {{0.3f, 0.3f, 0.3f, 1.0f}};
+		clearValues[1].depthStencil = {1.0f, 0};
 
-		//VkRenderPassBeginInfo renderPassInfo{};
-		//renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		//renderPassInfo.renderPass = renderPass;
-		//renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-		//renderPassInfo.renderArea.offset = {0, 0};
-		//renderPassInfo.renderArea.extent = swapChainExtent;
-		//renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		//renderPassInfo.pClearValues = clearValues.data();
+		VkRenderPassBeginInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+		renderPassInfo.renderArea.offset = {0, 0};
+		renderPassInfo.renderArea.extent = swapChainExtent;
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues = clearValues.data();
 
-		//vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		//VkViewport viewport{};
-		//viewport.x = 0.0f;
-		//viewport.y = 0.0f;
-		//viewport.width = static_cast<float>(swapChainExtent.width);
-		//viewport.height = static_cast<float>(swapChainExtent.height);
-		//viewport.minDepth = 0.0f;
-		//viewport.maxDepth = 1.0f;
-		//vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(swapChainExtent.width);
+		viewport.height = static_cast<float>(swapChainExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-		//VkRect2D scissor{};
-		//scissor.offset = {0, 0};
-		//scissor.extent = swapChainExtent;
-		//vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		VkRect2D scissor{};
+		scissor.offset = {0, 0};
+		scissor.extent = swapChainExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		////drawModelObj(commandBuffer, currentFrame);
-		//drawSceneGLTF(commandBuffer, currentFrame);
+		//drawModelObj(commandBuffer, currentFrame);
+		drawSceneGLTF(commandBuffer, currentFrame);
 
-		//vkCmdEndRenderPass(commandBuffer);
-		//
+		vkCmdEndRenderPass(commandBuffer);
+		
 
 		vulkanite_raytrace::buildCommandBuffers(commandBuffer, imageIndex);
 
@@ -910,6 +901,7 @@ private:
 		lastTimeFrame = currentTimeFrame;
 
 		updateCamera(window, deltaTime);
+		updateJitter(jitterCam, frameIndex);
 		
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -927,10 +919,11 @@ private:
 
 		//// record draw 
 		vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+
+		vulkanite_raytrace::updateUniformBuffersRaytrace(frameIndex);
+
 		recordCommandBuffer(commandBuffers[currentFrame], currentFrame);
 		
-		vulkanite_raytrace::updateUniformBuffersRaytrace();
-
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -974,6 +967,7 @@ private:
 		}
 
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		frameIndex++;
 	}
 };
 

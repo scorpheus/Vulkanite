@@ -22,7 +22,7 @@ auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 
 #include "camera.h"
 #include "computeMikkTSpace.h"
-#include "loader.h"
+#include "rasterizer.h"
 
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>

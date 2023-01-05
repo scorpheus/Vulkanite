@@ -6,9 +6,10 @@
 
 //glm::mat4 camWorld(glm::lookAt(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
 glm::mat4 camWorld(1);
+glm::vec2 jitterCam(0);
 static float camSpeed(0.1f), camRotSpeed(0.5f);
-static float pitch(0.376), yaw(-2.2), roll(0.f);
-static glm::vec3 translation(-0.656056166, -0.294942170, 0.433864325);
+float pitch(0.376), yaw(-2.2), roll(0.f);
+glm::vec3 translation(-0.656056166, -0.294942170, 0.433864325);
 double xMousePos, yMousePos;
 
 void updateCamWorld(glm::mat4 world) {
@@ -23,6 +24,26 @@ void updateCamWorld(glm::mat4 world) {
 	pitch = glm::pitch(rotation);
 	yaw = glm::yaw(rotation);
 	roll = glm::roll(rotation);
+}
+
+// for the jittering
+static float VanDerCorput(size_t base, size_t index) {
+	float ret = 0.0f;
+	float denominator = float(base);
+	while (index > 0) {
+		size_t multiplier = index % base;
+		ret += float(multiplier) / denominator;
+		index = index / base;
+		denominator *= base;
+	}
+	return ret;
+}
+
+void updateJitter(glm::vec2 &jitterCam, uint32_t frameIndex) {
+	//return;
+	uint32_t index = (frameIndex % 16) + 1;
+	jitterCam.x = VanDerCorput(2, index) - 0.5f;
+	jitterCam.y = VanDerCorput(3, index) - 0.5f;
 }
 
 void updateCamera(GLFWwindow *window, float deltaTime) {

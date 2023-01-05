@@ -16,8 +16,18 @@ VkQueue presentQueue;
 VkCommandPool commandPool;
 VkExtent2D swapChainExtent;
 
+VkImage colorImage;
+VkDeviceMemory colorImageMemory;
+VkImageView colorImageView;
+
+VkImage depthImage;
+VkDeviceMemory depthImageMemory;
+VkImageView depthImageView;
+VkFormat depthFormat;
+
 std::vector<VkImage> swapChainImages;
 VkFormat swapChainImageFormat;
+std::vector<VkFramebuffer> swapChainFramebuffers;
 
 VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
 VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};

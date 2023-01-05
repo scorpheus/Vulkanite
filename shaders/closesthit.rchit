@@ -4,7 +4,6 @@
 
 struct RayPayload {
 	vec3 color;
-	float depth;
 	int currentRecursion;
 };
 
@@ -62,6 +61,7 @@ layout(binding = 2, set = 0) uniform UBO {
 	mat4 SHRed;
 	mat4 SHGreen;
 	mat4 SHBlue;
+	uint frameID;
 } ubo;
 
 layout(binding = 3, set = 0) buffer Vertices {Vertex v[]; } vertices;
@@ -578,7 +578,7 @@ void main()
 	float light_intensity_with_shadow = 0.0;
 	for(uint i=0; i< uint(shadowrayCount); ++i){
 		// different random value for each pixel and each frame
-		vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, i/*frameID*/));
+		vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, i * ubo.frameID*shadowrayCount));
 		vec2 randomLightOffset = random.xy - 0.5;
 		vec3 offset = T * randomLightOffset.x + B * randomLightOffset.y;
 		vec3 lightDir = normalize(N + offset);
@@ -646,5 +646,4 @@ void main()
 
 	// Basic lighting
 	rayPayload.color = color;
-	rayPayload.depth = gl_HitTEXT;
 }

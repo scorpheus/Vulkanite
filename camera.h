@@ -7,6 +7,10 @@
 
 struct GLFWwindow;
 
+extern glm::vec2 jitterCam;
 extern glm::mat4 camWorld;
+extern float pitch, yaw, roll;
+extern glm::vec3 translation;
 void updateCamWorld(glm::mat4 world);
+void updateJitter(glm::vec2 &jitterCam, uint32_t frameIndex);
 void updateCamera(GLFWwindow *window, float deltaTime);
