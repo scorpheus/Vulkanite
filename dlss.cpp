@@ -149,7 +149,8 @@ void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 
 	NVSDK_NGX_Resource_VK depthResource = NVSDK_NGX_Create_ImageView_Resource_VK(depthImageView, depthImage, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, depthFormat, WIDTH, HEIGHT, true);
 	NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].view, vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
-
+	//NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(colorImageView, colorImage, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, swapChainImageFormat, WIDTH, HEIGHT, true);
+	
 
 	VkImageSubresourceRange subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 	setImageLayout(commandBuffer, inColorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
@@ -167,8 +168,8 @@ void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 	evalParams.InReset = 0;//resetHistory;
 	evalParams.InJitterOffsetX = jitterCam.x;
 	evalParams.InJitterOffsetY = jitterCam.y;
-	evalParams.InRenderSubrectDimensions.Width = static_cast<unsigned int>(WIDTH * DLSS_SCALE);//view.GetViewExtent().width();
-	evalParams.InRenderSubrectDimensions.Height = static_cast<unsigned int>(HEIGHT * DLSS_SCALE); // view.GetViewExtent().height();
+	evalParams.InRenderSubrectDimensions.Width = static_cast<unsigned int>(WIDTH * DLSS_SCALE);
+	evalParams.InRenderSubrectDimensions.Height = static_cast<unsigned int>(HEIGHT * DLSS_SCALE);
 
 	NVSDK_NGX_Result result = NGX_VULKAN_EVALUATE_DLSS_EXT(commandBuffer, dlssFeature, paramsDLSS, &evalParams);
 	
@@ -197,10 +198,10 @@ void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
 	copyRegion.srcOffset = {0, 0, 0};
 	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.dstOffset = {static_cast<int32_t>(swapChainExtent.width / 2), 0, 0};
-	copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
-	//copyRegion.dstOffset = {0, 0, 0};
-	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+	//copyRegion.dstOffset = {static_cast<int32_t>(swapChainExtent.width / 2), 0, 0};
+	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
+	copyRegion.dstOffset = {0, 0, 0};
+	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
 	vkCmdCopyImage(commandBuffer, storageImagesDLSS[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 	// Transition swap chain image back for presentation

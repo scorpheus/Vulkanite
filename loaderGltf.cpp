@@ -1067,15 +1067,19 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			}
 
 			// create VULKAN needs
-			createDescriptorSetLayout(subMesh.descriptorSetLayout);
-			createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
-			                       subMesh.descriptorSetLayout,
-			                       sceneGLTF.materialsCache[subMesh.mat].alphaMask);
+		//	createDescriptorSetLayout(subMesh.descriptorSetLayout);
+			//createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
+			 //                      subMesh.descriptorSetLayout, sceneGLTF.materialsCache[subMesh.mat].alphaMask);
+			//createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObject));
+		//	createDescriptorPool(subMesh.descriptorPool);
+		//	createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
 
-			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped);
+			createDescriptorSetLayoutMotionVector(subMesh.descriptorSetLayout);
+			createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples, subMesh.descriptorSetLayout, sceneGLTF.materialsCache[subMesh.mat].alphaMask);
+			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObjectMotionVector));
 
-			createDescriptorPool(subMesh.descriptorPool);
-			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
+			createDescriptorPoolMotionVector(subMesh.descriptorPool);
+			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
 
 			node.children.push_back(std::move(subMesh));
 		}

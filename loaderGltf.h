@@ -72,6 +72,7 @@ struct objectGLTF {
 	uint32_t id{0};
 	std::string name;
 	glm::mat4 world{1};
+	glm::mat4 PrevModelViewProjectionMat{1};
 
 	uint32_t mat;
 

@@ -311,7 +311,7 @@ vec3 pbrComputeSpecular(vec3 eye, vec3 normal, vec3 vertex_normal, vec3 tangent,
 	for (int i = 0; i < current_nb_samples; ++i)
 	{
 		//vec2 Xi = fibonacci2D(i, nbSamples);
-		vec2 Xi = Hammersley(i, current_nb_samples);		// no bitwise on webgl:  bit-wise operator supported in GLSL ES 3.00 and above only
+		vec2 Xi = Hammersley(i, int(current_nb_samples * ubo.frameID*current_nb_samples));		// no bitwise on webgl:  bit-wise operator supported in GLSL ES 3.00 and above only
 
 		//	vec3 Hn = importanceSampleGGX(Xi, tangent, bitangent, normal, roughness);
 		vec3 Hn = ImportanceSampleGGX(Xi, normal, roughness, tangent, bitangent);
@@ -578,7 +578,7 @@ void main()
 	float light_intensity_with_shadow = 0.0;
 	for(uint i=0; i< uint(shadowrayCount); ++i){
 		// different random value for each pixel and each frame
-		vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, i * ubo.frameID*shadowrayCount));
+		vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy * ubo.frameID*shadowrayCount, i * ubo.frameID*shadowrayCount));
 		vec2 randomLightOffset = random.xy - 0.5;
 		vec3 offset = T * randomLightOffset.x + B * randomLightOffset.y;
 		vec3 lightDir = normalize(N + offset);

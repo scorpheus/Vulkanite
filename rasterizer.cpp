@@ -28,13 +28,6 @@ CMRC_DECLARE(gltf_rc);
 #include "camera.h"
 #include "loaderGltf.h"
 
-struct UniformBufferObject {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 invView;
-	glm::mat4 proj;
-};
-
 struct UBOParams {
 	glm::vec4 lightDir;
 	float envRot;
@@ -301,6 +294,75 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 	}
 }
 
+void createDescriptorSetLayoutMotionVector(VkDescriptorSetLayout &descriptorSetLayout) {
+	VkDescriptorSetLayoutBinding uboLayoutBinding{};
+	uboLayoutBinding.binding = 0;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+	
+
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = {uboLayoutBinding};
+	VkDescriptorSetLayoutCreateInfo layoutInfo{};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.pBindings = bindings.data();
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+}
+
+void createDescriptorPoolMotionVector(VkDescriptorPool &descriptorPool) {
+	std::array<VkDescriptorPoolSize, 1> poolSizes{};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor pool!");
+	}
+}
+
+void createDescriptorSetsMotionVector(std::vector<VkDescriptorSet> &descriptorSets, const std::vector<VkBuffer> &uniformBuffers, const VkDescriptorSetLayout &descriptorSetLayout, const VkDescriptorPool &descriptorPool) {
+	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	allocInfo.pSetLayouts = layouts.data();
+
+	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate descriptor sets!");
+	}
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = uniformBuffers[i];
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(UniformBufferObjectMotionVector);
+		
+		std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
+		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[0].dstSet = descriptorSets[i];
+		descriptorWrites[0].dstBinding = 0;
+		descriptorWrites[0].dstArrayElement = 0;
+		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[0].descriptorCount = 1;
+		descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+	}
+}
+
 VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage) {
 	const auto shaderCode = readFile(fileName);
 
@@ -411,12 +473,12 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.size = sizeof(uint32_t);
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	pushConstantRange.offset = 0;
-	pipelineLayoutInfo.pushConstantRangeCount = 1;
-	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+	//VkPushConstantRange pushConstantRange{};
+	//pushConstantRange.size = sizeof(uint32_t);
+	//pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	//pushConstantRange.offset = 0;
+	//pipelineLayoutInfo.pushConstantRangeCount = 1;
+	//pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create pipeline layout!");
@@ -451,9 +513,8 @@ void createGraphicsPipeline(const std::string &vertexPath,
 void createUniformBuffers(
 	std::vector<VkBuffer> &uniformBuffers,
 	std::vector<VkDeviceMemory> &uniformBuffersMemory,
-	std::vector<void*> &uniformBuffersMapped) {
-	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
+	std::vector<void*> &uniformBuffersMapped, 
+	VkDeviceSize bufferSize) {
 	uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
 	uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
@@ -474,6 +535,19 @@ void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm
 	ubo.invView = glm::inverse(camWorld);
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 	ubo.proj[1][1] *= -1;
+	
+	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+}
+
+void updateUniformBufferMotionVector(uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world) {
+	UniformBufferObjectMotionVector ubo{};
+	
+	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
+	proj[1][1] *= -1;
+
+	ubo.modelViewProjectionMat = proj * camWorld  * obj.world * parent_world;
+	ubo.prevModelViewProjectionMat = obj.PrevModelViewProjectionMat;
+	obj.PrevModelViewProjectionMat = ubo.modelViewProjectionMat;
 
 	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
@@ -560,7 +634,6 @@ void loadSceneGLTF() {
 
 	vulkanite_raytrace::createTopLevelAccelerationStructure();
 
-	vulkanite_raytrace::createStorageImage(swapChainImageFormat, {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1});
 	vulkanite_raytrace::createUniformBuffer();
 	vulkanite_raytrace::createRayTracingPipeline();
 	vulkanite_raytrace::createShaderBindingTables();
@@ -581,10 +654,11 @@ void loadSceneGLTF() {
 	//	f(o);
 }
 
-void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
+void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
 	if (sceneGLTF.primsMeshCache[obj.primMesh] &&
 	    ((sceneGLTF.materialsCache[obj.mat].alphaMask == 0.f && !isRenderingAlphaPass) || (sceneGLTF.materialsCache[obj.mat].alphaMask != 0.f && isRenderingAlphaPass))) {
-		updateUniformBuffer(currentFrame, obj, parent_world);
+		//updateUniformBuffer(currentFrame, obj, parent_world);
+		updateUniformBufferMotionVector(currentFrame, obj, parent_world);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.graphicsPipeline);
 
@@ -596,12 +670,12 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, const o
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0, nullptr);
 
-		vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &obj.mat);
+		//vkCmdPushConstants(commandBuffer, obj.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &obj.mat);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sceneGLTF.primsMeshCache[obj.primMesh]->indices.size()), 1, 0, 0, 0);
 	}
 
-	for (const auto &objChild : obj.children)
+	for (auto &objChild : obj.children)
 		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world, isRenderingAlphaPass);
 }
 

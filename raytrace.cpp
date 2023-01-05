@@ -330,10 +330,10 @@ void createTopLevelAccelerationStructure() {
 }
 
 void createStorageImage(VkFormat format, VkExtent3D extent) {
-	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace, VkFormat format) {
+	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace, VkFormat format, VkImageAspectFlags aspect) {
 		storageImagesRaytrace.resize(MAX_FRAMES_IN_FLIGHT);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			// Release ressources if image is to be recreated
+			// Release resources if image is to be recreated
 			if (storageImagesRaytrace[i].image != VK_NULL_HANDLE) {
 				vkDestroyImageView(device, storageImagesRaytrace[i].view, nullptr);
 				vkDestroyImage(device, storageImagesRaytrace[i].image, nullptr);
@@ -348,8 +348,8 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 			image.mipLevels = 1;
 			image.arrayLayers = 1;
 			image.samples = VK_SAMPLE_COUNT_1_BIT;
-			image.tiling = VK_IMAGE_TILING_OPTIMAL;
-			image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+			image.tiling = VK_IMAGE_TILING_OPTIMAL;			
+			image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 			image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImagesRaytrace[i].image));
 
@@ -365,7 +365,7 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 			colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
 			colorImageView.format = format;
 			colorImageView.subresourceRange = {};
-			colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			colorImageView.subresourceRange.aspectMask = aspect ;
 			colorImageView.subresourceRange.baseMipLevel = 0;
 			colorImageView.subresourceRange.levelCount = 1;
 			colorImageView.subresourceRange.baseArrayLayer = 0;
@@ -377,9 +377,9 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 		}
 	};
 
-	f(storageImagesRaytrace, format);
-	f(storageImagesRaytraceDepth, VK_FORMAT_R32_SFLOAT);
-	f(storageImagesRaytraceMotionVector, VK_FORMAT_R32G32_SFLOAT);
+	f(storageImagesRaytrace, format, VK_IMAGE_ASPECT_COLOR_BIT);
+	//f(storageImagesRaytraceDepth, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+	f(storageImagesRaytraceMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void deleteStorageImage() {
@@ -712,7 +712,7 @@ void updateUniformBuffersRaytrace(uint32_t frameIndex) {
 	orientation = glm::normalize(orientation);
 	glm::mat4 rotate = glm::mat4_cast(orientation);
 	
-	auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE)), jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE));
+	auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE))*0.1, jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE)*0.1);
 
 	// Transform jitter vector from clip space to world space
 	float jitterX = (uniformData.projInverse * glm::vec4(jitter_screen.x, 0.0, 0.0, 1)).x;
@@ -781,25 +781,25 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 		Copy ray tracing output to swap chain image
 	*/
 
-	// Prepare current swap chain image as transfer destination
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+	//// Prepare current swap chain image as transfer destination
+	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
-	// Prepare ray tracing output image as transfer source
-	setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	//// Prepare ray tracing output image as transfer source
+	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 
-	VkImageCopy copyRegion{};
-	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.srcOffset = {0, 0, 0};
-	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.dstOffset = {0, 0, 0};
-	copyRegion.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
-	//copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	//VkImageCopy copyRegion{};
+	//copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	//copyRegion.srcOffset = {0, 0, 0};
+	//copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+	//copyRegion.dstOffset = {0, 0, 0};
+	//copyRegion.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
+	////copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+	//vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-	// Transition swap chain image back for presentation
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
+	//// Transition swap chain image back for presentation
+	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
 
-	// Transition ray tracing output image back to general layout
-	setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	//// Transition ray tracing output image back to general layout
+	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 }
 }

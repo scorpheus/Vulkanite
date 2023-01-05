@@ -17,6 +17,7 @@ void deleteModel();
 VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage);
 
 void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout);
+void createDescriptorSetLayoutMotionVector(VkDescriptorSetLayout &descriptorSetLayout);
 void createGraphicsPipeline(const std::string &vertexPath,
                             const std::string &fragPath,
                             VkPipelineLayout &pipelineLayout,
@@ -29,13 +30,31 @@ void createGraphicsPipeline(const std::string &vertexPath,
 void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuffer, VkDeviceMemory &vertexBufferMemory);
 void createIndexBuffer(const std::vector<uint32_t> &indices, VkBuffer &indexBuffer, VkDeviceMemory &indexBufferMemory);
 
-void createUniformBuffers(std::vector<VkBuffer> &uniformBuffers, std::vector<VkDeviceMemory> &uniformBuffersMemory, std::vector<void*> &uniformBuffersMapped);
+void createUniformBuffers(std::vector<VkBuffer> &uniformBuffers,
+                          std::vector<VkDeviceMemory> &uniformBuffersMemory,
+                          std::vector<void*> &uniformBuffersMapped,
+                          VkDeviceSize bufferSize);
 
 void createDescriptorPool(VkDescriptorPool &descriptorPool);
 void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const std::vector<VkBuffer> &uniformBuffers,
-                          const VkDescriptorSetLayout &descriptorSetLayout,
-                          const VkDescriptorPool &descriptorPool);
+                          const VkDescriptorSetLayout &descriptorSetLayout, const VkDescriptorPool &descriptorPool);
+void createDescriptorPoolMotionVector(VkDescriptorPool &descriptorPool);
+void createDescriptorSetsMotionVector(std::vector<VkDescriptorSet> &descriptorSets,
+                                      const std::vector<VkBuffer> &uniformBuffers,
+                                      const VkDescriptorSetLayout &descriptorSetLayout,
+                                      const VkDescriptorPool &descriptorPool);
+
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 invView;
+	glm::mat4 proj;
+};
+
+struct UniformBufferObjectMotionVector {
+	glm::mat4 modelViewProjectionMat, prevModelViewProjectionMat;
+};
 
 struct SceneVulkanite {
 	textureGLTF envMap;
@@ -51,5 +70,5 @@ struct SceneVulkanite {
 	std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
 	std::vector<matGLTF> materialsCache;
 };
-extern SceneVulkanite sceneGLTF;
 
+extern SceneVulkanite sceneGLTF;

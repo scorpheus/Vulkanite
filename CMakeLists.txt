@@ -132,6 +132,8 @@ cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc
 	spv/shader.frag.spv
 	spv/shader.vert.spv
 	spv/shadow.rmiss.spv
+	spv/shaderMotionVector.frag.spv
+	spv/shaderMotionVector.vert.spv	
 )
 set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_link_libraries(Vulkanite gltf-resources)
