@@ -4,6 +4,7 @@
 #include <string>
 #include <stdexcept>
 #include <cmath>
+#include <fmt/core.h>
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -105,7 +106,7 @@ void createTextureImage(const unsigned char *bytes, int size, VkImage &textureIm
 		pixels = stbi_loadf_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	else
 		pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	
+
 	if (!pixels) {
 		throw std::runtime_error("failed to load texture image!");
 	}
@@ -157,7 +158,8 @@ void createTextureImage(void *pixels,
 
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL,
+	            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
 	transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -205,5 +207,60 @@ void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 
 	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture sampler!");
+	}
+}
+
+void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat format, VkImageAspectFlags aspect, VkExtent3D extent) {
+	storageImages.resize(MAX_FRAMES_IN_FLIGHT);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		// Release resources if image is to be recreated
+		if (storageImages[i].image != VK_NULL_HANDLE) {
+			vkDestroyImageView(device, storageImages[i].view, nullptr);
+			vkDestroyImage(device, storageImages[i].image, nullptr);
+			vkFreeMemory(device, storageImages[i].memory, nullptr);
+			storageImages[i] = {};
+		}
+
+		VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+		image.imageType = VK_IMAGE_TYPE_2D;
+		image.format = format;
+		image.extent = extent;
+		image.mipLevels = 1;
+		image.arrayLayers = 1;
+		image.samples = VK_SAMPLE_COUNT_1_BIT;
+		image.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image.usage = aspect == VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT : (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImages[i].image));
+
+		VkMemoryRequirements memReqs;
+		vkGetImageMemoryRequirements(device, storageImages[i].image, &memReqs);
+		VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		memoryAllocateInfo.allocationSize = memReqs.size;
+		memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImages[i].memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, storageImages[i].image, storageImages[i].memory, 0));
+
+		VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		colorImageView.format = format;
+		colorImageView.subresourceRange = {};
+		colorImageView.subresourceRange.aspectMask = aspect;
+		colorImageView.subresourceRange.baseMipLevel = 0;
+		colorImageView.subresourceRange.levelCount = 1;
+		colorImageView.subresourceRange.baseArrayLayer = 0;
+		colorImageView.subresourceRange.layerCount = 1;
+		colorImageView.image = storageImages[i].image;
+		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImages[i].view));
+
+		transitionImageLayout(storageImages[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, aspect == VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL, 1);
+	}
+}
+
+void deleteStorageImage(std::vector<StorageImage> &storageImages) {
+	for (auto &storageImage: storageImages) {
+		vkDestroyImageView(device, storageImage.view, nullptr);
+		vkDestroyImage(device, storageImage.image, nullptr);
+		vkFreeMemory(device, storageImage.memory, nullptr);
 	}
 }

@@ -6,7 +6,8 @@
 #include <spdlog/spdlog.h>
 
 #include "camera.h"
-#include "raytrace.h"
+#include "scene.h"
+#include "texture.h"
 
 NVSDK_NGX_Parameter *paramsDLSS = nullptr;
 NVSDK_NGX_Handle *dlssFeature = nullptr;
@@ -15,16 +16,15 @@ void getExtensionsNeeded(unsigned int *OutInstanceExtCount, const char ***OutIns
 	auto result = NVSDK_NGX_VULKAN_RequiredExtensions(OutInstanceExtCount, OutInstanceExts, OutDeviceExtCount, OutDeviceExts);
 }
 
-std::vector<vulkanite_raytrace::StorageImage> storageImagesDLSS;
 void createStorageImage(VkFormat format, VkExtent3D extent) {
-	storageImagesDLSS.resize(MAX_FRAMES_IN_FLIGHT);
+	sceneGLTF.storageImagesDLSS.resize(MAX_FRAMES_IN_FLIGHT);
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		// Release ressources if image is to be recreated
-		if (storageImagesDLSS[i].image != VK_NULL_HANDLE) {
-			vkDestroyImageView(device, storageImagesDLSS[i].view, nullptr);
-			vkDestroyImage(device, storageImagesDLSS[i].image, nullptr);
-			vkFreeMemory(device, storageImagesDLSS[i].memory, nullptr);
-			storageImagesDLSS[i] = {};
+		if (sceneGLTF.storageImagesDLSS[i].image != VK_NULL_HANDLE) {
+			vkDestroyImageView(device, sceneGLTF.storageImagesDLSS[i].view, nullptr);
+			vkDestroyImage(device, sceneGLTF.storageImagesDLSS[i].image, nullptr);
+			vkFreeMemory(device, sceneGLTF.storageImagesDLSS[i].memory, nullptr);
+			sceneGLTF.storageImagesDLSS[i] = {};
 		}
 
 		VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -37,15 +37,15 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
 		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImagesDLSS[i].image));
+		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &sceneGLTF.storageImagesDLSS[i].image));
 
 		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(device, storageImagesDLSS[i].image, &memReqs);
+		vkGetImageMemoryRequirements(device, sceneGLTF.storageImagesDLSS[i].image, &memReqs);
 		VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 		memoryAllocateInfo.allocationSize = memReqs.size;
 		memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImagesDLSS[i].memory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, storageImagesDLSS[i].image, storageImagesDLSS[i].memory, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &sceneGLTF.storageImagesDLSS[i].memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, sceneGLTF.storageImagesDLSS[i].image, sceneGLTF.storageImagesDLSS[i].memory, 0));
 
 		VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -56,10 +56,10 @@ void createStorageImage(VkFormat format, VkExtent3D extent) {
 		colorImageView.subresourceRange.levelCount = 1;
 		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
-		colorImageView.image = storageImagesDLSS[i].image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImagesDLSS[i].view));
+		colorImageView.image = sceneGLTF.storageImagesDLSS[i].image;
+		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &sceneGLTF.storageImagesDLSS[i].view));
 
-		transitionImageLayout(storageImagesDLSS[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
+		transitionImageLayout(sceneGLTF.storageImagesDLSS[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
 	}
 }
 static void NVSDK_CONV NgxLogCallback(const char *message, NVSDK_NGX_Logging_Level loggingLevel, NVSDK_NGX_Feature sourceComponent) { std::string s(message); s.pop_back(); spdlog::info("NGX: {}", s); }
@@ -85,25 +85,7 @@ void initDLSS() {
 		
 
 	result = NVSDK_NGX_VULKAN_GetCapabilityParameters(&paramsDLSS);
-
-	//int dlssAvailable = 0;
-	//NVSDK_NGX_Result ResultDLSS = paramsDLSS->Get(NVSDK_NGX_Parameter_SuperSampling_Available, &dlssAvailable);
-	//if (ResultDLSS != NVSDK_NGX_Result_Success || !dlssAvailable) {
-	//	// More details about what failed (per feature init result)
-	//	NVSDK_NGX_Result FeatureInitResult = NVSDK_NGX_Result_Fail;
-	//	NVSDK_NGX_Parameter_GetI(paramsDLSS, NVSDK_NGX_Parameter_SuperSampling_FeatureInitResult, (int *)&FeatureInitResult);
-	//	spdlog::error(L"NVIDIA DLSS not available on this hardward/platform., FeatureInitResult = {}, info: {}", FeatureInitResult, GetNGXResultAsString(FeatureInitResult));
-	//	return;
-	//}
-
-	//paramsDLSS->Set(NVSDK_NGX_Parameter_Width, WIDTH);
-	//paramsDLSS->Set(NVSDK_NGX_Parameter_Height, HEIGHT);
-
-	//result = NVSDK_NGX_VULKAN_CreateFeature(commandBuffer, NVSDK_NGX_Feature_SuperSampling, paramsDLSS, &handleDLSS);
-
-	//size_t OutSizeInBytes;
-	//result = NVSDK_NGX_VULKAN_GetScratchBufferSize(NVSDK_NGX_Feature_SuperSampling, paramsDLSS, &OutSizeInBytes);
-
+	
 	//
     unsigned int CreationNodeMask = 1;
 	unsigned int VisibilityNodeMask = 1;
@@ -114,8 +96,8 @@ void initDLSS() {
 	DlssCreateFeatureFlags |= MotionVectorResolutionLow ? NVSDK_NGX_DLSS_Feature_Flags_MVLowRes : 0;
 	DlssCreateFeatureFlags |= /*isContentHDR ? NVSDK_NGX_DLSS_Feature_Flags_IsHDR : */0;
 	DlssCreateFeatureFlags |= /*depthInverted ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted :*/ 0;
-	DlssCreateFeatureFlags |= /*enableSharpening ? NVSDK_NGX_DLSS_Feature_Flags_DoSharpening : */0;
-	DlssCreateFeatureFlags |=/* enableAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure :*/ 0;
+	DlssCreateFeatureFlags |= 0 /*enableSharpening ? NVSDK_NGX_DLSS_Feature_Flags_DoSharpening :  0*/;
+	DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_AutoExposure /* enableAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0*/;
 
 	NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
 
@@ -140,22 +122,23 @@ void initDLSS() {
 	
 }
 
-void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness, bool gbufferWasRasterized, bool resetHistory) {
+void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness) {
 	
 	//nvrhi::ITexture *depthTexture = gbufferWasRasterized ? renderTargets.DeviceDepth : renderTargets.DeviceDepthUAV;
 
-	NVSDK_NGX_Resource_VK inColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(vulkanite_raytrace::storageImagesRaytrace[imageIndex].view, vulkanite_raytrace::storageImagesRaytrace[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, vulkanite_raytrace::storageImagesRaytrace[imageIndex].format, WIDTH, HEIGHT, true);
-	NVSDK_NGX_Resource_VK outColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(storageImagesDLSS[imageIndex].view, storageImagesDLSS[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, storageImagesDLSS[imageIndex].format, WIDTH, HEIGHT, true);
+	NVSDK_NGX_Resource_VK inColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesRaytrace[imageIndex].view, sceneGLTF.storageImagesRaytrace[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesRaytrace[imageIndex].format, WIDTH, HEIGHT, true);
+	NVSDK_NGX_Resource_VK outColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesDLSS[imageIndex].view, sceneGLTF.storageImagesDLSS[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesDLSS[imageIndex].format, WIDTH, HEIGHT, true);
 
-	NVSDK_NGX_Resource_VK depthResource = NVSDK_NGX_Create_ImageView_Resource_VK(depthImageView, depthImage, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, depthFormat, WIDTH, HEIGHT, true);
-	NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].view, vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, vulkanite_raytrace::storageImagesRaytraceMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
+	NVSDK_NGX_Resource_VK depthResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesDepth[imageIndex].view, sceneGLTF.storageImagesDepth[imageIndex].image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesDepth[imageIndex].format, WIDTH, HEIGHT, true);
+	NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesMotionVector[imageIndex].view, sceneGLTF.storageImagesMotionVector[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
 	//NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(colorImageView, colorImage, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, swapChainImageFormat, WIDTH, HEIGHT, true);
 	
 
 	VkImageSubresourceRange subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	VkImageSubresourceRange subresourceRangeDepth = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
 	setImageLayout(commandBuffer, inColorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
 	setImageLayout(commandBuffer, outColorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
-	setImageLayout(commandBuffer, depthResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
+	setImageLayout(commandBuffer, depthResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRangeDepth);
 	setImageLayout(commandBuffer, motionVectorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
 
 	NVSDK_NGX_VK_DLSS_Eval_Params evalParams = {};
@@ -180,33 +163,6 @@ void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 
 	setImageLayout(commandBuffer, inColorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 	setImageLayout(commandBuffer, outColorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
-	setImageLayout(commandBuffer, depthResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	setImageLayout(commandBuffer, depthResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, subresourceRangeDepth);
 	setImageLayout(commandBuffer, motionVectorResource.Resource.ImageViewInfo.Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
-	
-	
-	/*
-		Copy ray tracing output to swap chain image
-	*/
-	
-	// Prepare current swap chain image as transfer destination
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
-
-	// Prepare ray tracing output image as transfer source
-	 setImageLayout(commandBuffer, storageImagesDLSS[imageIndex].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
-
-	VkImageCopy copyRegion{};
-	copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	copyRegion.srcOffset = {0, 0, 0};
-	copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	//copyRegion.dstOffset = {static_cast<int32_t>(swapChainExtent.width / 2), 0, 0};
-	//copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
-	copyRegion.dstOffset = {0, 0, 0};
-	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	vkCmdCopyImage(commandBuffer, storageImagesDLSS[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-	// Transition swap chain image back for presentation
-	setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
-
-	// Transition ray tracing output image back to general layout
-	setImageLayout(commandBuffer, storageImagesDLSS[imageIndex].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 }

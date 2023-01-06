@@ -8,11 +8,10 @@
 #include "loaderGltf.h"
 #include "VulkanBuffer.h"
 
+struct UBOParams;
+struct StorageImage;
 struct matGLTF;
 struct Vertex;
-void loadSceneGLTF();
-void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame);
-void deleteModel();
 
 VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage);
 
@@ -38,37 +37,24 @@ void createUniformBuffers(std::vector<VkBuffer> &uniformBuffers,
 void createDescriptorPool(VkDescriptorPool &descriptorPool);
 void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
                           const std::vector<VkBuffer> &uniformBuffers,
-                          const VkDescriptorSetLayout &descriptorSetLayout, const VkDescriptorPool &descriptorPool);
+                          const VkDeviceSize &uniformBufferSize,
+                          const VkDescriptorSetLayout &descriptorSetLayout,
+                          const VkDescriptorPool &descriptorPool,
+                          const std::vector<VkBuffer> &uniformParamsBuffers,
+                          const VkDeviceSize &uniformParamsBufferSize);
 void createDescriptorPoolMotionVector(VkDescriptorPool &descriptorPool);
 void createDescriptorSetsMotionVector(std::vector<VkDescriptorSet> &descriptorSets,
                                       const std::vector<VkBuffer> &uniformBuffers,
+                                      const VkDeviceSize &uniformBufferSize,
                                       const VkDescriptorSetLayout &descriptorSetLayout,
                                       const VkDescriptorPool &descriptorPool);
 
-struct UniformBufferObject {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 invView;
-	glm::mat4 proj;
-};
+void createUniformParamsBuffers(VkDeviceSize bufferSize, std::vector<VkBuffer> &uniformParamsBuffers, std::vector<VkDeviceMemory> &uniformParamsBuffersMemory, std::vector<void *> &uniformParamsBuffersMapped);
 
-struct UniformBufferObjectMotionVector {
-	glm::mat4 modelViewProjectionMat, prevModelViewProjectionMat;
-};
+void createFramebuffers(const VkRenderPass &renderPass, std::vector<VkFramebuffer> &framebuffers, const std::vector<StorageImage> &colorImage, const std::vector<StorageImage> &depthImage);
+VkFormat findDepthFormat();
+void createRenderPass(VkRenderPass &renderPass, const VkFormat &colorImageFormat, const VkFormat &depthImageFormat, VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT);
 
-struct SceneVulkanite {
-	textureGLTF envMap;
-
-	std::vector<objectGLTF> roots;
-
-	VkBuffer allVerticesBuffer;
-	VkBuffer allIndicesBuffer;
-	vks::Buffer offsetPrimsBuffer;
-	vks::Buffer materialsCacheBuffer;
-
-	std::map<uint32_t, std::shared_ptr<textureGLTF>> textureCache;
-	std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
-	std::vector<matGLTF> materialsCache;
-};
-
-extern SceneVulkanite sceneGLTF;
+void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world);
+void updateUniformBufferMotionVector(uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world);
+void updateUniformParamsBuffer(UBOParams &uboParams, std::vector<void *> &uniformParamsBuffersMapped, uint32_t currentFrame);

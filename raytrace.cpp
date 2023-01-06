@@ -4,13 +4,14 @@
 #include <map>
 
 #include "vertex_config.h"
-
+#include "texture.h"
 #include "VulkanBuffer.h"
 
 #include <fmt/core.h>
 
 #include "camera.h"
 #include "rasterizer.h"
+#include "scene.h"
 
 namespace vulkanite_raytrace {
 // Function pointers for ray tracing related stuff
@@ -40,6 +41,7 @@ void InitRaytrace() {
 	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesKHR"));
 }
 
+// Function pointers for ray tracing related stuff
 uint64_t getBufferDeviceAddress(VkBuffer buffer) {
 	VkBufferDeviceAddressInfoKHR bufferDeviceAI{};
 	bufferDeviceAI.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
@@ -62,10 +64,8 @@ struct AccelerationStructure {
 	VkBuffer buffer;
 };
 
-std::vector<StorageImage> storageImagesRaytrace, storageImagesRaytraceDepth, storageImagesRaytraceMotionVector;
-
 // Extends the buffer class and holds information for a shader binding table
-class ShaderBindingTable : public vks::Buffer {
+class ShaderBindingTable : public Buffer {
 public:
 	VkStridedDeviceAddressRegionKHR stridedDeviceAddressRegion{};
 };
@@ -100,7 +100,7 @@ struct UniformData {
 	uint32_t frameID;
 } uniformData;
 
-vks::Buffer ubo;
+Buffer ubo;
 
 ScratchBuffer createScratchBuffer(VkDeviceSize size) {
 	ScratchBuffer scratchBuffer{};
@@ -269,7 +269,7 @@ void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const gl
 
 void createTopLevelAccelerationStructure() {
 	// Buffer for instance data
-	vks::Buffer instancesBuffer;
+	Buffer instancesBuffer;
 	VK_CHECK_RESULT(
 		createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &instancesBuffer, sizeof(VkAccelerationStructureInstanceKHR)*instances.size(), instances.
@@ -327,67 +327,6 @@ void createTopLevelAccelerationStructure() {
 
 	deleteScratchBuffer(scratchBuffer);
 	instancesBuffer.destroy();
-}
-
-void createStorageImage(VkFormat format, VkExtent3D extent) {
-	auto f = [=](std::vector<StorageImage> &storageImagesRaytrace, VkFormat format, VkImageAspectFlags aspect) {
-		storageImagesRaytrace.resize(MAX_FRAMES_IN_FLIGHT);
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			// Release resources if image is to be recreated
-			if (storageImagesRaytrace[i].image != VK_NULL_HANDLE) {
-				vkDestroyImageView(device, storageImagesRaytrace[i].view, nullptr);
-				vkDestroyImage(device, storageImagesRaytrace[i].image, nullptr);
-				vkFreeMemory(device, storageImagesRaytrace[i].memory, nullptr);
-				storageImagesRaytrace[i] = {};
-			}
-
-			VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-			image.imageType = VK_IMAGE_TYPE_2D;
-			image.format = format;
-			image.extent = extent;
-			image.mipLevels = 1;
-			image.arrayLayers = 1;
-			image.samples = VK_SAMPLE_COUNT_1_BIT;
-			image.tiling = VK_IMAGE_TILING_OPTIMAL;			
-			image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-			image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImagesRaytrace[i].image));
-
-			VkMemoryRequirements memReqs;
-			vkGetImageMemoryRequirements(device, storageImagesRaytrace[i].image, &memReqs);
-			VkMemoryAllocateInfo memoryAllocateInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-			memoryAllocateInfo.allocationSize = memReqs.size;
-			memoryAllocateInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImagesRaytrace[i].memory));
-			VK_CHECK_RESULT(vkBindImageMemory(device, storageImagesRaytrace[i].image, storageImagesRaytrace[i].memory, 0));
-
-			VkImageViewCreateInfo colorImageView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-			colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			colorImageView.format = format;
-			colorImageView.subresourceRange = {};
-			colorImageView.subresourceRange.aspectMask = aspect ;
-			colorImageView.subresourceRange.baseMipLevel = 0;
-			colorImageView.subresourceRange.levelCount = 1;
-			colorImageView.subresourceRange.baseArrayLayer = 0;
-			colorImageView.subresourceRange.layerCount = 1;
-			colorImageView.image = storageImagesRaytrace[i].image;
-			VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImagesRaytrace[i].view));
-
-			transitionImageLayout(storageImagesRaytrace[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 1);
-		}
-	};
-
-	f(storageImagesRaytrace, format, VK_IMAGE_ASPECT_COLOR_BIT);
-	//f(storageImagesRaytraceDepth, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
-	f(storageImagesRaytraceMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
-}
-
-void deleteStorageImage() {
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		vkDestroyImageView(device, storageImagesRaytrace[i].view, nullptr);
-		vkDestroyImage(device, storageImagesRaytrace[i].image, nullptr);
-		vkFreeMemory(device, storageImagesRaytrace[i].memory, nullptr);
-	}
 }
 
 uint32_t alignedSize(uint32_t value, uint32_t alignment) { return (value + alignment - 1) & ~(alignment - 1); }
@@ -509,7 +448,7 @@ void createDescriptorSets() {
 		accelerationStructureWrite.descriptorCount = 1;
 		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
+		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, sceneGLTF.storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
 		VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
@@ -776,30 +715,6 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 	*/
 	VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
 	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion, &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1);
-
-	/*
-		Copy ray tracing output to swap chain image
-	*/
-
-	//// Prepare current swap chain image as transfer destination
-	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
-
-	//// Prepare ray tracing output image as transfer source
-	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
-
-	//VkImageCopy copyRegion{};
-	//copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	//copyRegion.srcOffset = {0, 0, 0};
-	//copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-	//copyRegion.dstOffset = {0, 0, 0};
-	//copyRegion.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
-	////copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
-	//vkCmdCopyImage(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-	//// Transition swap chain image back for presentation
-	//setImageLayout(commandBuffer, swapChainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange);
-
-	//// Transition ray tracing output image back to general layout
-	//setImageLayout(commandBuffer, storageImagesRaytrace[imageIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	
 }
 }

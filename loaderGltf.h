@@ -81,10 +81,6 @@ struct objectGLTF {
 
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
-	VkDescriptorSetLayout descriptorSetLayout;
-
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;

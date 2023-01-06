@@ -4,6 +4,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+struct Buffer;
 std::string errorString(VkResult errorCode);
 
 #define VK_CHECK_RESULT_S(f, s)			\
@@ -27,7 +28,7 @@ struct Buffer;
 
 const uint32_t WIDTH = 1024;
 const uint32_t HEIGHT = 768;
-const float DLSS_SCALE = 0.75;
+extern float DLSS_SCALE;
 
 extern uint32_t MAX_FRAMES_IN_FLIGHT;
 
@@ -43,17 +44,9 @@ extern VkImage colorImage;
 extern VkDeviceMemory colorImageMemory;
 extern VkImageView colorImageView;
 
-extern VkImage depthImage;
-extern VkDeviceMemory depthImageMemory;
-extern VkImageView depthImageView;
-extern VkFormat depthFormat;
-
-
 extern std::vector<VkImage> swapChainImages;
 extern VkFormat swapChainImageFormat;
-extern std::vector<VkFramebuffer> swapChainFramebuffers;
 
-extern VkRenderPass renderPass;
 extern VkSampleCountFlagBits msaaSamples;
 
 extern VkExtent2D swapChainExtent;
@@ -69,7 +62,7 @@ void createBuffer(VkDeviceSize size,
                   VkMemoryPropertyFlags properties,
                   VkBuffer &buffer,
                   VkDeviceMemory &bufferMemory);
-VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data = nullptr);
+VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, Buffer *buffer, VkDeviceSize size, void *data = nullptr);
 void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 VkCommandBuffer beginSingleTimeCommands();

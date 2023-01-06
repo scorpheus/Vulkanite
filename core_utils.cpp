@@ -6,6 +6,7 @@
 
 #include "VulkanBuffer.h"
 
+float DLSS_SCALE = 0.75;
 uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
@@ -20,19 +21,12 @@ VkImage colorImage;
 VkDeviceMemory colorImageMemory;
 VkImageView colorImageView;
 
-VkImage depthImage;
-VkDeviceMemory depthImageMemory;
-VkImageView depthImageView;
-VkFormat depthFormat;
-
 std::vector<VkImage> swapChainImages;
 VkFormat swapChainImageFormat;
-std::vector<VkFramebuffer> swapChainFramebuffers;
 
 VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
 VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 
-VkRenderPass renderPass;
 VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 std::string errorString(VkResult errorCode) {
@@ -130,7 +124,7 @@ void createBuffer(VkDeviceSize size,
  *
  * @return VK_SUCCESS if buffer handle and memory have been created and (optionally passed) data has been copied
  */
-VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data) {
+VkResult createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, Buffer *buffer, VkDeviceSize size, void *data) {
 	buffer->device = device;
 
 	// Create the buffer handle

@@ -3,7 +3,7 @@
 #include "core_utils.h"
 #include "texture.h"
 #include "vertex_config.h"
-#include "VulkanBuffer.h"
+#include "scene.h"
 
 #include <nlohmann/json.hpp>
 
@@ -617,7 +617,7 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 				mat.transmissionTex = transmissionTexture;
 				mat.transmissionTextureSet = 0;
 			}
-		}			
+		}
 	}
 
 	// check extension transmission
@@ -1067,20 +1067,16 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 			}
 
 			// create VULKAN needs
-		//	createDescriptorSetLayout(subMesh.descriptorSetLayout);
-			//createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples,
-			 //                      subMesh.descriptorSetLayout, sceneGLTF.materialsCache[subMesh.mat].alphaMask);
-			//createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObject));
-		//	createDescriptorPool(subMesh.descriptorPool);
-		//	createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
-
-			createDescriptorSetLayoutMotionVector(subMesh.descriptorSetLayout);
-			createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", subMesh.pipelineLayout, subMesh.graphicsPipeline, renderPass, msaaSamples, subMesh.descriptorSetLayout, sceneGLTF.materialsCache[subMesh.mat].alphaMask);
-			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObjectMotionVector));
-
+#ifdef DRAW_RASTERIZE
+			createDescriptorPool(subMesh.descriptorPool);
+			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObject));
+			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObject), sceneGLTF.descriptorSetLayout, subMesh.descriptorPool, sceneGLTF.uniformParamsBuffers, sizeof(UBOParams));
+#else
+			// motion vector
 			createDescriptorPoolMotionVector(subMesh.descriptorPool);
-			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, subMesh.descriptorSetLayout, subMesh.descriptorPool);
-
+			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObjectMotionVector));
+			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObjectMotionVector), sceneGLTF.descriptorSetLayout, subMesh.descriptorPool);
+#endif
 			node.children.push_back(std::move(subMesh));
 		}
 
@@ -1351,6 +1347,13 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
 	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.materialsCacheBuffer, sizeof(matGLTF) * sceneGLTF.materialsCache.size(),
 	             sceneGLTF.materialsCache.data());
+
+#ifdef DRAW_RASTERIZE
+	// create the graphic pipeline with the right amount of textures
+	createDescriptorSetLayout(sceneGLTF.descriptorSetLayout);
+	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", sceneGLTF.pipelineLayout, sceneGLTF.graphicsPipeline, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, false);
+	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", sceneGLTF.pipelineLayoutAlpha, sceneGLTF.graphicsPipelineAlpha, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, true);
+#endif
 
 	// load all prims
 	for (const auto &mesh : model.meshes) {
