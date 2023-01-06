@@ -229,7 +229,10 @@ void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat forma
 		image.arrayLayers = 1;
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
-		image.usage = aspect == VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT : (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+		image.usage = aspect == VK_IMAGE_ASPECT_DEPTH_BIT
+			              ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+			              : (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+			                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImages[i].image));
 
@@ -253,12 +256,13 @@ void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat forma
 		colorImageView.image = storageImages[i].image;
 		VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImages[i].view));
 
-		transitionImageLayout(storageImages[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED, aspect == VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL, 1);
+		transitionImageLayout(storageImages[i].image, format, VK_IMAGE_LAYOUT_UNDEFINED,
+		                      aspect == VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL, 1);
 	}
 }
 
 void deleteStorageImage(std::vector<StorageImage> &storageImages) {
-	for (auto &storageImage: storageImages) {
+	for (auto &storageImage : storageImages) {
 		vkDestroyImageView(device, storageImage.view, nullptr);
 		vkDestroyImage(device, storageImage.image, nullptr);
 		vkFreeMemory(device, storageImage.memory, nullptr);

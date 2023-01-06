@@ -31,6 +31,9 @@ void initSceneGLTF() {
 
 #ifdef DRAW_RASTERIZE
 	DLSS_SCALE = 1.0;
+#else
+	// dlss
+	initDLSS();
 #endif
 
 	// setup motion pass
@@ -103,8 +106,6 @@ void initSceneGLTF() {
 	vulkanite_raytrace::createShaderBindingTables();
 	vulkanite_raytrace::createDescriptorSets();
 
-	// dlss
-	initDLSS();
 #endif
 }
 

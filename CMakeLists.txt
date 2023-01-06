@@ -149,6 +149,11 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix"
 
 # install binary, runtime dependencies and data dependencies
 install(TARGETS Vulkanite ARCHIVE DESTINATION Vulkanite RUNTIME DESTINATION Vulkanite LIBRARY DESTINATION Vulkanite COMPONENT Vulkanite)
+install(DIRECTORY extern/DLSS/lib/Windows_x86_64/rel/ DESTINATION Vulkanite COMPONENT Vulkanite)
+add_custom_command(TARGET Vulkanite POST_BUILD 
+               COMMAND ${CMAKE_COMMAND} -E copy_if_different
+               "${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll"              
+                $<TARGET_FILE_DIR:Vulkanite>)
 
 # add the spherical harmonics extractor project
 add_subdirectory("SphericalHarmonicsExtractor")

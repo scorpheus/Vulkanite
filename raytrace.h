@@ -7,7 +7,6 @@ void InitRaytrace();
 void createBottomLevelAccelerationStructure(const objectGLTF &obj);
 void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const glm::mat4 &world);
 void createTopLevelAccelerationStructure();
-void createStorageImage(VkFormat format, VkExtent3D extent);
 void createUniformBuffer();
 void createShaderBindingTables();
 void createDescriptorSets();
