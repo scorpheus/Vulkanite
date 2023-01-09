@@ -97,7 +97,6 @@ void initDLSS() {
 }
 
 void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness) {
-	//nvrhi::ITexture *depthTexture = gbufferWasRasterized ? renderTargets.DeviceDepth : renderTargets.DeviceDepthUAV;
 
 	NVSDK_NGX_Resource_VK inColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesRaytrace[imageIndex].view,
 	                                                                               sceneGLTF.storageImagesRaytrace[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
@@ -113,7 +112,6 @@ void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 	                                                                                    sceneGLTF.storageImagesMotionVector[imageIndex].image,
 	                                                                                    {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
 	                                                                                    sceneGLTF.storageImagesMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
-	//NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(colorImageView, colorImage, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, swapChainImageFormat, WIDTH, HEIGHT, true);
 
 
 	VkImageSubresourceRange subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};

@@ -10,6 +10,11 @@ NEXT:
 * add shadow from raytracing to rasterization
 * GI
 * Moving objects
+
+Requirements:
+* Cmake
+* Conan (if you have python just do "`pip install conan`")
+* if after cmake, the code ask you some depencies, just run cmake configur/generate another time.
   
 Screenshots:
 ![alt text](screenshots/screenshot1.jpg "Raytracing")
