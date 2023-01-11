@@ -41,7 +41,7 @@ static float VanDerCorput(size_t base, size_t index) {
 
 void updateJitter(glm::vec2 &jitterCam, uint32_t frameIndex) {
 	//return;
-	uint32_t index = (frameIndex % 16) + 1;
+	uint32_t index = (frameIndex % 32) + 1;
 	jitterCam.x = VanDerCorput(2, index) - 0.5f;
 	jitterCam.y = VanDerCorput(3, index) - 0.5f;
 }

@@ -621,12 +621,19 @@ void createUniformBuffers(
 }
 
 void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
+
+	auto JitterMatrix = glm::mat4(1);
+	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y, 0.0f));
+
+	//
 	UniformBufferObject ubo{};
-	ubo.model = obj.world * parent_world;
-	ubo.view = camWorld;
-	ubo.invView = glm::inverse(camWorld);
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 100.0f);
 	ubo.proj[1][1] *= -1;
+	//ubo.proj = ubo.proj * JitterMatrix;
+
+	ubo.model = obj.world * parent_world;
+	ubo.view = camWorld;
+	ubo.invView = glm::inverse(ubo.view);
 
 	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }

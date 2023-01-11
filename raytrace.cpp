@@ -630,38 +630,41 @@ void createRayTracingPipeline() {
 }
 
 void updateUniformBuffersRaytrace(uint32_t frameIndex) {
-		
+
+	auto JitterMatrix = glm::mat4(1);
+	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y,0.0f));
+
 	auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width * DLSS_SCALE) / static_cast<float>(swapChainExtent.height * DLSS_SCALE), 0.001f, 10000.f);
 	proj[1][1] *= -1;
-	uniformData.projInverse = glm::inverse(proj);
+	uniformData.projInverse = glm::inverse(proj * JitterMatrix );
+	//
+	//// test jitter
+	//const glm::mat4 inverted = glm::inverse(camWorld);
+	//const glm::vec3 right = normalize(glm::vec3(inverted[0]));
+	//const glm::vec3 top = normalize(glm::vec3(inverted[1]));
 
+	//// FPS camera:  RotationX(pitch) * RotationY(yaw)
+	//glm::quat qPitch = glm::angleAxis(pitch, glm::vec3(1, 0, 0));
+	//glm::quat qYaw = glm::angleAxis(yaw, glm::vec3(0, 1, 0));
+	//glm::quat qRoll = glm::angleAxis(roll, glm::vec3(0, 0, 1));
 
-	// test jitter
-	const glm::mat4 inverted = glm::inverse(camWorld);
-	const glm::vec3 right = normalize(glm::vec3(inverted[0]));
-	const glm::vec3 top = normalize(glm::vec3(inverted[1]));
+	//// For a FPS camera we can omit roll
+	//glm::quat orientation = qPitch * qYaw;
+	//orientation = glm::normalize(orientation);
+	//glm::mat4 rotate = glm::mat4_cast(orientation);
 
-	// FPS camera:  RotationX(pitch) * RotationY(yaw)
-	glm::quat qPitch = glm::angleAxis(pitch, glm::vec3(1, 0, 0));
-	glm::quat qYaw = glm::angleAxis(yaw, glm::vec3(0, 1, 0));
-	glm::quat qRoll = glm::angleAxis(roll, glm::vec3(0, 0, 1));
+	//float distanceFocusPoint = 0.4f;
+	//auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE)) * distanceFocusPoint, jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE) * distanceFocusPoint);
 
-	// For a FPS camera we can omit roll
-	glm::quat orientation = qPitch * qYaw;
-	orientation = glm::normalize(orientation);
-	glm::mat4 rotate = glm::mat4_cast(orientation);
-	
-	auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE))*0.1, jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE)*0.1);
+	//// Transform jitter vector from clip space to world space
+	//float jitterX = (uniformData.projInverse * glm::vec4(jitter_screen.x, 0.0, 0.0, 1)).x;
+	//float jitterY = (uniformData.projInverse * glm::vec4(0.0, jitter_screen.y, 0.0, 1)).y;
 
-	// Transform jitter vector from clip space to world space
-	float jitterX = (uniformData.projInverse * glm::vec4(jitter_screen.x, 0.0, 0.0, 1)).x;
-	float jitterY = (uniformData.projInverse * glm::vec4(0.0, jitter_screen.y, 0.0, 1)).y;
-
-	glm::mat4 translate = glm::mat4(1.0f);
-	translate = glm::translate(translate, translation + right * jitterX + top * jitterY);
-	auto camWorldJitter = rotate * translate;
-	
-	uniformData.viewInverse = glm::inverse(camWorldJitter);
+	//glm::mat4 translate = glm::mat4(1.0f);
+	//translate = glm::translate(translate, translation + right * jitterX + top * jitterY);
+	//auto camWorldJitter = rotate * translate;
+	//
+	uniformData.viewInverse = glm::inverse(camWorld);
 	uniformData.lightPos = glm::vec4(20, 20, 20, 0.0f);
 
 	//static auto startTime = std::chrono::high_resolution_clock::now();

@@ -37,12 +37,13 @@ void initSceneGLTF() {
 #endif
 
 	// setup motion pass
-	VkExtent3D extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
+	VkExtent3D extent = {static_cast<uint32_t>(swapChainExtent.width), static_cast<uint32_t>(swapChainExtent.height), 1};
+	VkExtent3D extentScale = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
 
 	createStorageImage(sceneGLTF.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent);
 #ifdef DRAW_RASTERIZE
 	createStorageImage(sceneGLTF.storageImagesRasterize, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent);
-	createRenderPass(sceneGLTF.renderPass, swapChainImageFormat, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT);
+	createRenderPass(sceneGLTF.renderPass, swapChainImageFormat, findDepthFormat(), msaaSamples);
 #else
 	createStorageImage(sceneGLTF.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent);
 	createRenderPass(sceneGLTF.renderPass, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT);
@@ -58,8 +59,8 @@ void initSceneGLTF() {
 	// create 2 graphics pipeline (without/without alpha);
 #if !defined DRAW_RASTERIZE
 	createDescriptorSetLayoutMotionVector(sceneGLTF.descriptorSetLayout);
-	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayout, sceneGLTF.graphicsPipeline, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, false);
-	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayoutAlpha, sceneGLTF.graphicsPipelineAlpha, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, true);
+	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayout, sceneGLTF.graphicsPipeline, sceneGLTF.renderPass, VK_SAMPLE_COUNT_1_BIT, sceneGLTF.descriptorSetLayout, false);
+	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayoutAlpha, sceneGLTF.graphicsPipelineAlpha, sceneGLTF.renderPass, VK_SAMPLE_COUNT_1_BIT, sceneGLTF.descriptorSetLayout, true);
 #endif
 
 #ifdef DRAW_RASTERIZE
@@ -73,7 +74,7 @@ void initSceneGLTF() {
 
 #if !defined DRAW_RASTERIZE
 	// setup raytrace
-	createStorageImage(sceneGLTF.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent);
+	createStorageImage(sceneGLTF.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale);
 
 	vulkanite_raytrace::InitRaytrace();
 
@@ -117,7 +118,7 @@ void updateSceneGLTF(float deltaTime) {
 	float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() * 70.f;
 
 	glm::mat4 movingMat = glm::mat4(1.0f);
-	sceneGLTF.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
+	//sceneGLTF.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {

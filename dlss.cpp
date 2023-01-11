@@ -70,9 +70,10 @@ void initDLSS() {
 	int DlssCreateFeatureFlags = NVSDK_NGX_DLSS_Feature_Flags_None;
 	DlssCreateFeatureFlags |= MotionVectorResolutionLow ? NVSDK_NGX_DLSS_Feature_Flags_MVLowRes : 0;
 	DlssCreateFeatureFlags |= /*isContentHDR ? NVSDK_NGX_DLSS_Feature_Flags_IsHDR : */0;
-	DlssCreateFeatureFlags |= /*depthInverted ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted :*/ 0;
+	DlssCreateFeatureFlags |= 0 /*depthInverted ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted : 0*/;
 	DlssCreateFeatureFlags |= 0 /*enableSharpening ? NVSDK_NGX_DLSS_Feature_Flags_DoSharpening :  0*/;
 	DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_AutoExposure /* enableAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0*/;
+	DlssCreateFeatureFlags |= 0;//NVSDK_NGX_DLSS_Feature_Flags_MVJittered;
 
 	NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
 
