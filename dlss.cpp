@@ -58,8 +58,8 @@ void initDLSS() {
 	result = NGX_DLSS_GET_OPTIMAL_SETTINGS(paramsDLSS, InUserSelectedWidth, InUserSelectedHeight, InPerfQualityValue, &pOutRenderOptimalWidth, &pOutRenderOptimalHeight,
 	                                       &pOutRenderMaxWidth, &pOutRenderMaxHeight, &pOutRenderMinWidth, &pOutRenderMinHeight, &pOutSharpness);
 
-	// set optimal dlss
-	DLSS_SCALE = static_cast<float>(pOutRenderOptimalHeight) / static_cast<float>(InUserSelectedHeight);
+	// set optimal dlss // for now, max
+	DLSS_SCALE = 1.f;// static_cast<float>(pOutRenderOptimalHeight) / static_cast<float>(InUserSelectedHeight);
 
 	//
 	unsigned int CreationNodeMask = 1;

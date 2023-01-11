@@ -621,15 +621,11 @@ void createUniformBuffers(
 }
 
 void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
-
-	auto JitterMatrix = glm::mat4(1);
-	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y, 0.0f));
-
+	
 	//
 	UniformBufferObject ubo{};
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 100.0f);
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
 	ubo.proj[1][1] *= -1;
-	//ubo.proj = ubo.proj * JitterMatrix;
 
 	ubo.model = obj.world * parent_world;
 	ubo.view = camWorld;
@@ -641,11 +637,15 @@ void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm
 void updateUniformBufferMotionVector(uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world) {
 	UniformBufferObjectMotionVector ubo{};
 
-	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 100.0f);
+	auto JitterMatrix = glm::mat4(1);
+	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y, 0.0f));
+
+	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
 	proj[1][1] *= -1;
 
 	ubo.modelViewProjectionMat = proj * camWorld * obj.world * parent_world;
 	ubo.prevModelViewProjectionMat = obj.PrevModelViewProjectionMat;
+	ubo.jitterMat = JitterMatrix;
 	obj.PrevModelViewProjectionMat = ubo.modelViewProjectionMat;
 
 	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));

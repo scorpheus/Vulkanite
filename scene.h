@@ -26,7 +26,7 @@ struct UBOParams {
 };
 
 struct UniformBufferObjectMotionVector {
-	glm::mat4 modelViewProjectionMat, prevModelViewProjectionMat;
+	glm::mat4 modelViewProjectionMat, prevModelViewProjectionMat, jitterMat;
 };
 
 struct SceneVulkanite {

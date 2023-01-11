@@ -253,7 +253,7 @@ void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
 /*
 	The top level acceleration structure contains the scene's object instances
 */
-void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const glm::mat4 &world) {
+void createTopLevelAccelerationStructureInstance(objectGLTF &obj, const glm::mat4 &world, const bool &update) {
 	VkAccelerationStructureInstanceKHR instance{};
 	for (int i = 0; i < 3; i++)
 		for (int j = 0; j < 4; j++)
@@ -264,10 +264,17 @@ void createTopLevelAccelerationStructureInstance(const objectGLTF &obj, const gl
 	instance.instanceShaderBindingTableRecordOffset = 0; // We will use the same hit group for all objects
 	instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
 	instance.accelerationStructureReference = bottomLevelAS[obj.id].deviceAddress;
-	instances.push_back(instance);
-}
 
-void createTopLevelAccelerationStructure() {
+	if (update)
+		instances[obj.idInstanceRaytrace] = instance;
+	else {
+		obj.idInstanceRaytrace = instances.size();
+		instances.push_back(instance);
+	}
+}
+VkDeviceSize accelerationStructureBuildSizesInfoBuildScratchSize;
+
+void createTopLevelAccelerationStructure(bool update) {
 	// Buffer for instance data
 	Buffer instancesBuffer;
 	VK_CHECK_RESULT(
@@ -285,29 +292,34 @@ void createTopLevelAccelerationStructure() {
 	accelerationStructureGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
 	accelerationStructureGeometry.geometry.instances.data = instanceDataDeviceAddress;
 
-	// Get size info
-	VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
-	accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-	accelerationStructureBuildGeometryInfo.geometryCount = 1;
-	accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+	if (!update) {
+		// Get size info
+		VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+		accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+		accelerationStructureBuildGeometryInfo.geometryCount = 1;
+		accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
 
-	uint32_t primitiveCount = static_cast<uint32_t>(instances.size());
+		uint32_t primitiveCount = static_cast<uint32_t>(instances.size());
 
-	VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-	vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitiveCount,
-	                                        &accelerationStructureBuildSizesInfo);
+		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+		vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &primitiveCount,
+												&accelerationStructureBuildSizesInfo);
 
-	createAccelerationStructure(topLevelAS, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, accelerationStructureBuildSizesInfo);
+		createAccelerationStructure(topLevelAS, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, accelerationStructureBuildSizesInfo);
+
+		accelerationStructureBuildSizesInfoBuildScratchSize = accelerationStructureBuildSizesInfo.buildScratchSize;
+	}
 
 	// Create a small scratch buffer used during build of the top level acceleration structure
-	ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+	ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfoBuildScratchSize);
 
 	VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
 	accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-	accelerationBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+	accelerationBuildGeometryInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	accelerationBuildGeometryInfo.dstAccelerationStructure = topLevelAS.handle;
+	accelerationBuildGeometryInfo.srcAccelerationStructure = topLevelAS.handle;
 	accelerationBuildGeometryInfo.geometryCount = 1;
 	accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
 	accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
@@ -637,33 +649,7 @@ void updateUniformBuffersRaytrace(uint32_t frameIndex) {
 	auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width * DLSS_SCALE) / static_cast<float>(swapChainExtent.height * DLSS_SCALE), 0.001f, 10000.f);
 	proj[1][1] *= -1;
 	uniformData.projInverse = glm::inverse(proj * JitterMatrix );
-	//
-	//// test jitter
-	//const glm::mat4 inverted = glm::inverse(camWorld);
-	//const glm::vec3 right = normalize(glm::vec3(inverted[0]));
-	//const glm::vec3 top = normalize(glm::vec3(inverted[1]));
 
-	//// FPS camera:  RotationX(pitch) * RotationY(yaw)
-	//glm::quat qPitch = glm::angleAxis(pitch, glm::vec3(1, 0, 0));
-	//glm::quat qYaw = glm::angleAxis(yaw, glm::vec3(0, 1, 0));
-	//glm::quat qRoll = glm::angleAxis(roll, glm::vec3(0, 0, 1));
-
-	//// For a FPS camera we can omit roll
-	//glm::quat orientation = qPitch * qYaw;
-	//orientation = glm::normalize(orientation);
-	//glm::mat4 rotate = glm::mat4_cast(orientation);
-
-	//float distanceFocusPoint = 0.4f;
-	//auto jitter_screen = glm::vec2(jitterCam.x / (static_cast<float>(swapChainExtent.width * DLSS_SCALE)) * distanceFocusPoint, jitterCam.y / static_cast<float>(swapChainExtent.height * DLSS_SCALE) * distanceFocusPoint);
-
-	//// Transform jitter vector from clip space to world space
-	//float jitterX = (uniformData.projInverse * glm::vec4(jitter_screen.x, 0.0, 0.0, 1)).x;
-	//float jitterY = (uniformData.projInverse * glm::vec4(0.0, jitter_screen.y, 0.0, 1)).y;
-
-	//glm::mat4 translate = glm::mat4(1.0f);
-	//translate = glm::translate(translate, translation + right * jitterX + top * jitterY);
-	//auto camWorldJitter = rotate * translate;
-	//
 	uniformData.viewInverse = glm::inverse(camWorld);
 	uniformData.lightPos = glm::vec4(20, 20, 20, 0.0f);
 

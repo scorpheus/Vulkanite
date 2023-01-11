@@ -69,7 +69,7 @@ struct primMeshGLTF {
 
 struct objectGLTF {
 	std::vector<objectGLTF> children;
-	uint32_t id{0};
+	uint32_t id{0}, idInstanceRaytrace{0};
 	std::string name;
 	glm::mat4 world{1};
 	glm::mat4 PrevModelViewProjectionMat{1};

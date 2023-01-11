@@ -13,11 +13,12 @@ layout(location = 1) out vec4 vPrevPosition;
 layout(binding = 0) uniform UniformBufferObject {
     mat4 uModelViewProjectionMat;
     mat4 uPrevModelViewProjectionMat;
+    mat4 uJitterMat;
 } ubo;
 
 void main() {
-    vPosition = ubo.uModelViewProjectionMat * vec4(inPosition, 1.0);
-    vPrevPosition = ubo.uPrevModelViewProjectionMat * vec4(inPosition, 1.0);
+    vPosition = ubo.uModelViewProjectionMat * ubo.uJitterMat * vec4(inPosition, 1.0);
+    vPrevPosition = ubo.uPrevModelViewProjectionMat * ubo.uJitterMat * vec4(inPosition, 1.0);
 
     gl_Position = vPosition;
 }

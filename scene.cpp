@@ -90,17 +90,17 @@ void initSceneGLTF() {
 		makeBLASf(o);
 
 	// make las
-	std::function<void(const objectGLTF &, const glm::mat4 &)> makeTLASf;
-	makeTLASf = [&](const objectGLTF &obj, const glm::mat4 &parent_world) {
+	std::function<void(objectGLTF &, const glm::mat4 &)> makeTLASf;
+	makeTLASf = [&](objectGLTF &obj, const glm::mat4 &parent_world) {
 		if (sceneGLTF.primsMeshCache[obj.primMesh])
-			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world);
-		for (const auto &objChild : obj.children)
+			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, false);
+		for (auto &objChild : obj.children)
 			makeTLASf(objChild, obj.world * parent_world);
 	};
-	for (const auto &o : sceneGLTF.roots)
+	for (auto &o : sceneGLTF.roots)
 		makeTLASf(o, glm::mat4(1));
 
-	vulkanite_raytrace::createTopLevelAccelerationStructure();
+	vulkanite_raytrace::createTopLevelAccelerationStructure(false);
 
 	vulkanite_raytrace::createUniformBuffer();
 	vulkanite_raytrace::createRayTracingPipeline();
@@ -118,7 +118,23 @@ void updateSceneGLTF(float deltaTime) {
 	float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() * 70.f;
 
 	glm::mat4 movingMat = glm::mat4(1.0f);
-	//sceneGLTF.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
+	sceneGLTF.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
+		
+#if !defined DRAW_RASTERIZE
+	// update raytrace
+	std::function<void(objectGLTF &, const glm::mat4 &)> updateTLASf;
+	updateTLASf = [&](objectGLTF &obj, const glm::mat4 &parent_world) {
+		if (sceneGLTF.primsMeshCache[obj.primMesh])
+			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, true);
+		for (auto &objChild : obj.children)
+			updateTLASf(objChild, obj.world * parent_world);
+	};
+	for (auto &o : sceneGLTF.roots[5].children)
+		updateTLASf(o, sceneGLTF.roots[5].world);
+
+	vulkanite_raytrace::createTopLevelAccelerationStructure(true);
+#endif
+
 }
 
 void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
