@@ -11,7 +11,6 @@ ray-tracing-in-vulkan)
 NEXT: 
 * add shadow from raytracing to rasterization
 * GI
-* Moving objects
 
 Requirements:
 * Cmake
