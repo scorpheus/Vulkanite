@@ -14,7 +14,7 @@ NEXT:
 
 Requirements:
 * Cmake
-* Conan (if you have python just do "`pip install conan`")
+* Conan (if you have python just do "`pip install conan==1.59.0`")
 * if after cmake, the code ask you some depencies, just run cmake configure/generate another time.
   
 Screenshots:  
