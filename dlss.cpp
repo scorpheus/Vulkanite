@@ -23,7 +23,7 @@ static void NVSDK_CONV NgxLogCallback(const char *message, NVSDK_NGX_Logging_Lev
 	spdlog::info("NGX: {}", s);
 }
 
-void initDLSS() {
+bool initDLSS() {
 	createStorageImage(sceneGLTF.storageImagesDLSS, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, {swapChainExtent.width, swapChainExtent.height, 1});
 	
 	NVSDK_NGX_FeatureCommonInfo featureCommonInfo = {};
@@ -38,7 +38,7 @@ void initDLSS() {
 			spdlog::info(L"NVIDIA NGX not available on this hardware/platform., code = {}, info: {}", result, GetNGXResultAsString(result));
 		else
 			spdlog::error(L"Failed to initialize NGX, error code = {}, info: {}", result, GetNGXResultAsString(result));
-		return;
+		return false;
 	}
 
 
@@ -92,9 +92,10 @@ void initDLSS() {
 
 	if (NVSDK_NGX_FAILED(result)) {
 		spdlog::error(L"Failed to create DLSS Features = {}, info: {}", result, GetNGXResultAsString(result));
-		return;
+		return false;
 	}
 	endSingleTimeCommands(commandBuffer);
+	return true;
 }
 
 void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness) {

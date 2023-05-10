@@ -68,6 +68,7 @@ struct SceneVulkanite {
 };
 
 extern SceneVulkanite sceneGLTF;
+extern bool USE_DLSS;
 
 void loadSceneGLTF();
 void initSceneGLTF();

@@ -13,6 +13,7 @@
 CMRC_DECLARE(gltf_rc);
 
 SceneVulkanite sceneGLTF;
+bool USE_DLSS = true;
 
 void loadSceneGLTF() {
 	sceneGLTF.envMap.name = "envMap";
@@ -31,9 +32,11 @@ void initSceneGLTF() {
 
 #ifdef DRAW_RASTERIZE
 	DLSS_SCALE = 1.0;
-#else
+#else	
 	// dlss
-	initDLSS();
+	USE_DLSS = initDLSS();
+	if (!USE_DLSS)
+		DLSS_SCALE = 1.f;
 #endif
 
 	// setup motion pass
@@ -143,7 +146,8 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectG
 #ifdef DRAW_RASTERIZE
 		updateUniformBuffer(currentFrame, obj, parent_world);
 #else
-		updateUniformBufferMotionVector(currentFrame, obj, parent_world);
+		if (USE_DLSS)
+			updateUniformBufferMotionVector(currentFrame, obj, parent_world);
 #endif
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -227,8 +231,9 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	// raytrace
 	vulkanite_raytrace::buildCommandBuffers(commandBuffer, currentFrame);
 
-	// dll
-	RenderDLSS(commandBuffer, currentFrame, 1.0);
+	if (USE_DLSS)
+		// dlss
+		RenderDLSS(commandBuffer, currentFrame, 1.0);
 #endif
 
 
@@ -239,10 +244,14 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	setImageLayout(commandBuffer, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
 
 	// Prepare ray tracing output image as transfer source
-#ifdef DRAW_RASTERIZE
+#ifdef DRAW_RASTERIZE 
 	setImageLayout(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 #else
-	setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	if (USE_DLSS)
+		setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	else
+		setImageLayout(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+
 #endif
 
 	VkImageCopy copyRegion{};
@@ -257,7 +266,10 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame],
 	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 #else
-	vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	if (USE_DLSS)
+		vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	else
+		vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 #endif
 
 	// Transition swap chain image back for presentation
@@ -267,7 +279,10 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 #ifdef DRAW_RASTERIZE
 	setImageLayout(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 #else
-	setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	if (USE_DLSS)
+		setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	else
+		setImageLayout(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 #endif
 
 
