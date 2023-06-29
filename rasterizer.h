@@ -5,12 +5,12 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "loaderGltf.h"
+#include "loader.h"
 #include "VulkanBuffer.h"
 
 struct UBOParams;
 struct StorageImage;
-struct matGLTF;
+struct matVulkanite;
 struct Vertex;
 
 VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage);
@@ -55,6 +55,6 @@ void createFramebuffers(const VkRenderPass &renderPass, std::vector<VkFramebuffe
 VkFormat findDepthFormat();
 void createRenderPass(VkRenderPass &renderPass, const VkFormat &colorImageFormat, const VkFormat &depthImageFormat, VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT);
 
-void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world);
-void updateUniformBufferMotionVector(uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world);
+void updateUniformBuffer(uint32_t currentFrame, const objectVulkanite &obj, const glm::mat4 &parent_world);
+void updateUniformBufferMotionVector(uint32_t currentFrame, objectVulkanite &obj, const glm::mat4 &parent_world);
 void updateUniformParamsBuffer(UBOParams &uboParams, std::vector<void *> &uniformParamsBuffersMapped, uint32_t currentFrame);

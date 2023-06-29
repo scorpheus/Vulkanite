@@ -8,27 +8,41 @@
 #include "rasterizer.h"
 #include "raytrace.h"
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
+
 #include <cmrc/cmrc.hpp>
 #include <glm/ext/matrix_transform.hpp>
 CMRC_DECLARE(gltf_rc);
 
-SceneVulkanite sceneGLTF;
+SceneVulkanite scene;
 bool USE_DLSS = true;
 
-void loadSceneGLTF() {
-	sceneGLTF.envMap.name = "envMap";
+void loadScene() {
+	scene.envMap.name = "envMap";
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 	auto envmapRC = cmrcFS.open(ENVMAP);
 
-	createTextureImage(reinterpret_cast<const unsigned char*>(envmapRC.cbegin()), envmapRC.size(), sceneGLTF.envMap.textureImage, sceneGLTF.envMap.textureImageMemory,
-	                   sceneGLTF.envMap.mipLevels, true);
-	sceneGLTF.envMap.textureImageView = createTextureImageView(sceneGLTF.envMap.textureImage, sceneGLTF.envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
-	createTextureSampler(sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.mipLevels);
+	createTextureImage(reinterpret_cast<const unsigned char*>(envmapRC.cbegin()), envmapRC.size(), scene.envMap.textureImage, scene.envMap.textureImageMemory,
+	                   scene.envMap.mipLevels, true);
+	scene.envMap.textureImageView = createTextureImageView(scene.envMap.textureImage, scene.envMap.mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
+	createTextureSampler(scene.envMap.textureSampler, scene.envMap.mipLevels);
+	//if (fs::path(MODEL_GLTF_PATH).extension() == ".gltf" || fs::path(MODEL_GLTF_PATH).extension() == ".glb")
+	//	scene.roots = loadSceneGLTF(MODEL_GLTF_PATH);
+	//else
+	//	scene.roots = loadSceneUSD(MODEL_GLTF_PATH);
 
-	sceneGLTF.roots = loadSceneGltf(MODEL_GLTF_PATH);
+//	std::string scenePath("models/simple_texture_cube.usda");
+	//std::string scenePath("models/BoxTextured.glb");
+	std::string scenePath("models/abeautifulgame_draco.usdc");
+	if (fs::path(scenePath).extension() == ".gltf" || fs::path(scenePath).extension() == ".glb")
+		scene.roots = loadSceneGLTF(scenePath);
+	else
+		scene.roots = loadSceneUSD(scenePath);
 }
 
-void initSceneGLTF() {
+void initScene() {
 
 #ifdef DRAW_RASTERIZE
 	DLSS_SCALE = 1.0;
@@ -43,64 +57,64 @@ void initSceneGLTF() {
 	VkExtent3D extent = {static_cast<uint32_t>(swapChainExtent.width), static_cast<uint32_t>(swapChainExtent.height), 1};
 	VkExtent3D extentScale = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1};
 
-	createStorageImage(sceneGLTF.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent);
+	createStorageImage(scene.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent);
 #ifdef DRAW_RASTERIZE
-	createStorageImage(sceneGLTF.storageImagesRasterize, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent);
-	createRenderPass(sceneGLTF.renderPass, swapChainImageFormat, findDepthFormat(), msaaSamples);
+	createStorageImage(scene.storageImagesRasterize, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent);
+	createRenderPass(scene.renderPass, swapChainImageFormat, findDepthFormat(), msaaSamples);
 #else
-	createStorageImage(sceneGLTF.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent);
-	createRenderPass(sceneGLTF.renderPass, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT);
+	createStorageImage(scene.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent);
+	createRenderPass(scene.renderPass, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT);
 #endif
 
 
 #ifdef DRAW_RASTERIZE
-	createFramebuffers(sceneGLTF.renderPass, sceneGLTF.rasterizerFramebuffers, sceneGLTF.storageImagesRasterize, sceneGLTF.storageImagesDepth);
+	createFramebuffers(scene.renderPass, scene.rasterizerFramebuffers, scene.storageImagesRasterize, scene.storageImagesDepth);
 #else
-	createFramebuffers(sceneGLTF.renderPass, sceneGLTF.rasterizerFramebuffers, sceneGLTF.storageImagesMotionVector, sceneGLTF.storageImagesDepth);
+	createFramebuffers(scene.renderPass, scene.rasterizerFramebuffers, scene.storageImagesMotionVector, scene.storageImagesDepth);
 #endif
 
 	// create 2 graphics pipeline (without/without alpha);
 #if !defined DRAW_RASTERIZE
-	createDescriptorSetLayoutMotionVector(sceneGLTF.descriptorSetLayout);
-	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayout, sceneGLTF.graphicsPipeline, sceneGLTF.renderPass, VK_SAMPLE_COUNT_1_BIT, sceneGLTF.descriptorSetLayout, false);
-	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", sceneGLTF.pipelineLayoutAlpha, sceneGLTF.graphicsPipelineAlpha, sceneGLTF.renderPass, VK_SAMPLE_COUNT_1_BIT, sceneGLTF.descriptorSetLayout, true);
+	createDescriptorSetLayoutMotionVector(scene.descriptorSetLayout);
+	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, VK_SAMPLE_COUNT_1_BIT, scene.descriptorSetLayout, false);
+	createGraphicsPipeline("spv/shaderMotionVector.vert.spv", "spv/shaderMotionVector.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, VK_SAMPLE_COUNT_1_BIT, scene.descriptorSetLayout, true);
 #endif
 
 #ifdef DRAW_RASTERIZE
-	createUniformParamsBuffers(sizeof(UBOParams), sceneGLTF.uniformParamsBuffers, sceneGLTF.uniformParamsBuffersMemory, sceneGLTF.uniformParamsBuffersMapped);
+	createUniformParamsBuffers(sizeof(UBOParams), scene.uniformParamsBuffers, scene.uniformParamsBuffersMemory, scene.uniformParamsBuffersMapped);
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		updateUniformParamsBuffer(sceneGLTF.uboParams, sceneGLTF.uniformParamsBuffersMapped, i);
+		updateUniformParamsBuffer(scene.uboParams, scene.uniformParamsBuffersMapped, i);
 #endif
 
-	// load gltf
-	loadSceneGLTF();
+	// load
+	loadScene();
 
 #if !defined DRAW_RASTERIZE
 	// setup raytrace
-	createStorageImage(sceneGLTF.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale);
+	createStorageImage(scene.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale);
 
 	vulkanite_raytrace::InitRaytrace();
 
 	// make blas
-	std::function<void(const objectGLTF &)> makeBLASf;
-	makeBLASf = [&](const objectGLTF &obj) {
-		if (sceneGLTF.primsMeshCache[obj.primMesh])
+	std::function<void(const objectVulkanite &)> makeBLASf;
+	makeBLASf = [&](const objectVulkanite &obj) {
+		if (scene.primsMeshCache[obj.primMesh])
 			vulkanite_raytrace::createBottomLevelAccelerationStructure(obj);
 		for (const auto &objChild : obj.children)
 			makeBLASf(objChild);
 	};
-	for (const auto &o : sceneGLTF.roots)
+	for (const auto &o : scene.roots)
 		makeBLASf(o);
 
 	// make las
-	std::function<void(objectGLTF &, const glm::mat4 &)> makeTLASf;
-	makeTLASf = [&](objectGLTF &obj, const glm::mat4 &parent_world) {
-		if (sceneGLTF.primsMeshCache[obj.primMesh])
+	std::function<void(objectVulkanite &, const glm::mat4 &)> makeTLASf;
+	makeTLASf = [&](objectVulkanite &obj, const glm::mat4 &parent_world) {
+		if (scene.primsMeshCache[obj.primMesh])
 			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, false);
 		for (auto &objChild : obj.children)
 			makeTLASf(objChild, obj.world * parent_world);
 	};
-	for (auto &o : sceneGLTF.roots)
+	for (auto &o : scene.roots)
 		makeTLASf(o, glm::mat4(1));
 
 	vulkanite_raytrace::createTopLevelAccelerationStructure(false);
@@ -113,36 +127,40 @@ void initSceneGLTF() {
 #endif
 }
 
-void updateSceneGLTF(float deltaTime) {
+void updateScene(float deltaTime) {
 	// move in circle one pion
 
 	static auto startTime = std::chrono::high_resolution_clock::now();
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float timer = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() * 70.f;
 
-	glm::mat4 movingMat = glm::mat4(1.0f);
-	sceneGLTF.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
-		
 #if !defined DRAW_RASTERIZE
 	// update raytrace
-	std::function<void(objectGLTF &, const glm::mat4 &)> updateTLASf;
-	updateTLASf = [&](objectGLTF &obj, const glm::mat4 &parent_world) {
-		if (sceneGLTF.primsMeshCache[obj.primMesh])
+	std::function<void(objectVulkanite &, const glm::mat4 &)> updateTLASf;
+	updateTLASf = [&](objectVulkanite &obj, const glm::mat4 &parent_world) {
+		if (scene.primsMeshCache[obj.primMesh])
 			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, true);
 		for (auto &objChild : obj.children)
 			updateTLASf(objChild, obj.world * parent_world);
 	};
-	for (auto &o : sceneGLTF.roots[5].children)
-		updateTLASf(o, sceneGLTF.roots[5].world);
+
+	// update the 5th object around (moving test for the chess game)
+	if (5 < scene.roots.size()) {
+		glm::mat4 movingMat = glm::mat4(1.0f);
+		scene.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
+
+		for (auto &o : scene.roots[5].children)
+			updateTLASf(o, scene.roots[5].world);
+	}
 
 	vulkanite_raytrace::createTopLevelAccelerationStructure(true);
 #endif
-
 }
 
-void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
-	if (sceneGLTF.primsMeshCache[obj.primMesh] && ((sceneGLTF.materialsCache[obj.mat].alphaMask == 0.f && !isRenderingAlphaPass) || (
-		                                               sceneGLTF.materialsCache[obj.mat].alphaMask != 0.f && isRenderingAlphaPass))) {
+void drawModel(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectVulkanite &obj, const glm::mat4 &parent_world, const bool &isRenderingAlphaPass) {
+	auto alphaMask = scene.materialsCache[obj.matCacheID]->alphaMask;
+	if (scene.primsMeshCache[obj.primMesh] && ((alphaMask == 0.f && !isRenderingAlphaPass) || (
+		                                               alphaMask != 0.f && isRenderingAlphaPass))) {
 #ifdef DRAW_RASTERIZE
 		updateUniformBuffer(currentFrame, obj, parent_world);
 #else
@@ -151,36 +169,37 @@ void drawModelGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectG
 #endif
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-		                  sceneGLTF.materialsCache[obj.mat].alphaMask ? sceneGLTF.graphicsPipelineAlpha : sceneGLTF.graphicsPipeline);
+		                  alphaMask ? scene.graphicsPipelineAlpha : scene.graphicsPipeline);
 
-		VkBuffer vertexBuffers[] = {sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer};
+		VkBuffer vertexBuffers[] = {scene.primsMeshCache[obj.primMesh]->vertexBuffer};
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffer, sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(commandBuffer, scene.primsMeshCache[obj.primMesh]->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-		                        sceneGLTF.materialsCache[obj.mat].alphaMask ? sceneGLTF.pipelineLayoutAlpha : sceneGLTF.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0,
-		                        nullptr);
+		if (currentFrame < obj.descriptorSets.size())
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+									alphaMask ? scene.pipelineLayoutAlpha : scene.pipelineLayout, 0, 1, &obj.descriptorSets[currentFrame], 0,
+									nullptr);
 
 #ifdef DRAW_RASTERIZE
-		vkCmdPushConstants(commandBuffer, sceneGLTF.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &obj.mat);
+		vkCmdPushConstants(commandBuffer, scene.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &obj.mat);
 #endif
 
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sceneGLTF.primsMeshCache[obj.primMesh]->indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(scene.primsMeshCache[obj.primMesh]->indices.size()), 1, 0, 0, 0);
 	}
 
 	for (auto &objChild : obj.children)
-		drawModelGLTF(commandBuffer, currentFrame, objChild, obj.world * parent_world, isRenderingAlphaPass);
+		drawModel(commandBuffer, currentFrame, objChild, obj.world * parent_world, isRenderingAlphaPass);
 }
 
-void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
+void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	// draw opaque
-	for (auto &obj : sceneGLTF.roots)
-		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), false);
+	for (auto &obj : scene.roots)
+		drawModel(commandBuffer, currentFrame, obj, glm::mat4(1), false);
 	// draw alpha
-	for (auto &obj : sceneGLTF.roots)
-		drawModelGLTF(commandBuffer, currentFrame, obj, glm::mat4(1), true);
+	for (auto &obj : scene.roots)
+		drawModel(commandBuffer, currentFrame, obj, glm::mat4(1), true);
 }
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
@@ -200,8 +219,8 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = sceneGLTF.renderPass;
-	renderPassInfo.framebuffer = sceneGLTF.rasterizerFramebuffers[currentFrame];
+	renderPassInfo.renderPass = scene.renderPass;
+	renderPassInfo.framebuffer = scene.rasterizerFramebuffers[currentFrame];
 	renderPassInfo.renderArea.offset = {0, 0};
 	renderPassInfo.renderArea.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE)};
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -223,7 +242,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	scissor.extent = {static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE)};
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	drawSceneGLTF(commandBuffer, currentFrame);
+	drawScene(commandBuffer, currentFrame);
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -245,12 +264,12 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 
 	// Prepare ray tracing output image as transfer source
 #ifdef DRAW_RASTERIZE 
-	setImageLayout(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+	setImageLayout(commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 #else
 	if (USE_DLSS)
-		setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+		setImageLayout(commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 	else
-		setImageLayout(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
+		setImageLayout(commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 
 #endif
 
@@ -263,13 +282,13 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	copyRegion.dstOffset = {0, 0, 0};
 	copyRegion.extent = {swapChainExtent.width, swapChainExtent.height, 1};
 #ifdef DRAW_RASTERIZE
-	vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame],
+	vkCmdCopyImage(commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame],
 	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 #else
 	if (USE_DLSS)
-		vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyImage(commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 	else
-		vkCmdCopyImage(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyImage(commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 #endif
 
 	// Transition swap chain image back for presentation
@@ -277,12 +296,12 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 
 	// Transition ray tracing output image back to general layout
 #ifdef DRAW_RASTERIZE
-	setImageLayout(commandBuffer, sceneGLTF.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+	setImageLayout(commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 #else
 	if (USE_DLSS)
-		setImageLayout(commandBuffer, sceneGLTF.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+		setImageLayout(commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 	else
-		setImageLayout(commandBuffer, sceneGLTF.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
+		setImageLayout(commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 #endif
 
 
@@ -293,32 +312,32 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 }
 
 void destroyScene() {
-	vkDestroyDescriptorSetLayout(device, sceneGLTF.descriptorSetLayout, nullptr);
-	vkDestroyPipeline(device, sceneGLTF.graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, sceneGLTF.pipelineLayout, nullptr);
-	vkDestroyPipeline(device, sceneGLTF.graphicsPipelineAlpha, nullptr);
-	vkDestroyPipelineLayout(device, sceneGLTF.pipelineLayoutAlpha, nullptr);
+	vkDestroyDescriptorSetLayout(device, scene.descriptorSetLayout, nullptr);
+	vkDestroyPipeline(device, scene.graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, scene.pipelineLayout, nullptr);
+	vkDestroyPipeline(device, scene.graphicsPipelineAlpha, nullptr);
+	vkDestroyPipelineLayout(device, scene.pipelineLayoutAlpha, nullptr);
 
-	vkDestroyRenderPass(device, sceneGLTF.renderPass, nullptr);
+	vkDestroyRenderPass(device, scene.renderPass, nullptr);
 
-	for (auto framebuffer : sceneGLTF.rasterizerFramebuffers)
+	for (auto framebuffer : scene.rasterizerFramebuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
 
-	deleteStorageImage(sceneGLTF.storageImagesDepth);
+	deleteStorageImage(scene.storageImagesDepth);
 #ifdef DRAW_RASTERIZE
-	deleteStorageImage(sceneGLTF.storageImagesRasterize);
+	deleteStorageImage(scene.storageImagesRasterize);
 #else
-	deleteStorageImage(sceneGLTF.storageImagesRaytrace);
-	deleteStorageImage(sceneGLTF.storageImagesDLSS);
-	deleteStorageImage(sceneGLTF.storageImagesMotionVector);
+	deleteStorageImage(scene.storageImagesRaytrace);
+	deleteStorageImage(scene.storageImagesDLSS);
+	deleteStorageImage(scene.storageImagesMotionVector);
 #endif
 }
 
 void deleteModel() {
-	std::function<void(objectGLTF &)> f;
+	std::function<void(objectVulkanite &)> f;
 
-	f = [=](objectGLTF &obj) {
-		if (sceneGLTF.primsMeshCache[obj.primMesh]) {
+	f = [=](objectVulkanite &obj) {
+		if (scene.primsMeshCache[obj.primMesh]) {
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				if (i < obj.uniformBuffers.size())
 					vkDestroyBuffer(device, obj.uniformBuffers[i], nullptr);
@@ -327,17 +346,17 @@ void deleteModel() {
 			}
 
 			// TODO delete from the cache
-			// vkDestroyBuffer(device, sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer, nullptr);
-			// vkFreeMemory(device, sceneGLTF.primsMeshCache[obj.primMesh]->indexBufferMemory, nullptr);
+			// vkDestroyBuffer(device, scene.primsMeshCache[obj.primMesh]->indexBuffer, nullptr);
+			// vkFreeMemory(device, scene.primsMeshCache[obj.primMesh]->indexBufferMemory, nullptr);
 
-			// vkDestroyBuffer(device, sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer, nullptr);
-			// vkFreeMemory(device, sceneGLTF.primsMeshCache[obj.primMesh]->vertexBufferMemory, nullptr);
+			// vkDestroyBuffer(device, scene.primsMeshCache[obj.primMesh]->vertexBuffer, nullptr);
+			// vkFreeMemory(device, scene.primsMeshCache[obj.primMesh]->vertexBufferMemory, nullptr);
 		}
 		for (const auto &objChild : obj.children)
 			f(obj);
 	};
 
-	for (auto o : sceneGLTF.roots) {
+	for (auto o : scene.roots) {
 		f(o);
 	}
 }

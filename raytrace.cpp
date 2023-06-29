@@ -181,7 +181,7 @@ void deleteAccelerationStructure(AccelerationStructure &accelerationStructure) {
 /*
 Create the bottom level acceleration structure contains the scene's actual geometry (vertices, triangles)
 */
-void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
+void createBottomLevelAccelerationStructure(const objectVulkanite &obj) {
 	// don't recreate if already done by another instance
 	if (bottomLevelAS.contains(obj.id))
 		return;
@@ -189,11 +189,11 @@ void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
 	VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
 	VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
 
-	vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(sceneGLTF.primsMeshCache[obj.primMesh]->vertexBuffer);
-	indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(sceneGLTF.primsMeshCache[obj.primMesh]->indexBuffer);
+	vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.primsMeshCache[obj.primMesh]->vertexBuffer);
+	indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.primsMeshCache[obj.primMesh]->indexBuffer);
 
-	uint32_t numTriangles = static_cast<uint32_t>(sceneGLTF.primsMeshCache[obj.primMesh]->indices.size()) / 3;
-	uint32_t maxVertex = sceneGLTF.primsMeshCache[obj.primMesh]->vertices.size();
+	uint32_t numTriangles = static_cast<uint32_t>(scene.primsMeshCache[obj.primMesh]->indices.size()) / 3;
+	uint32_t maxVertex = scene.primsMeshCache[obj.primMesh]->vertices.size();
 
 	// Build
 	VkAccelerationStructureGeometryKHR accelerationStructureGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
@@ -253,13 +253,13 @@ void createBottomLevelAccelerationStructure(const objectGLTF &obj) {
 /*
 	The top level acceleration structure contains the scene's object instances
 */
-void createTopLevelAccelerationStructureInstance(objectGLTF &obj, const glm::mat4 &world, const bool &update) {
+void createTopLevelAccelerationStructureInstance(objectVulkanite &obj, const glm::mat4 &world, const bool &update) {
 	VkAccelerationStructureInstanceKHR instance{};
 	for (int i = 0; i < 3; i++)
 		for (int j = 0; j < 4; j++)
 			instance.transform.matrix[i][j] = world[j][i];
 
-	instance.instanceCustomIndex = sceneGLTF.primsMeshCache[obj.primMesh]->id << 16 | obj.mat; // gl_InstanceCustomIndexEXT in the shader
+	instance.instanceCustomIndex = scene.primsMeshCache[obj.primMesh]->id << 16 | obj.mat; // gl_InstanceCustomIndexEXT in the shader
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0; // We will use the same hit group for all objects
 	instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
@@ -460,22 +460,22 @@ void createDescriptorSets() {
 		accelerationStructureWrite.descriptorCount = 1;
 		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, sceneGLTF.storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
-		VkDescriptorBufferInfo vertexBufferDescriptor{sceneGLTF.allVerticesBuffer, 0, VK_WHOLE_SIZE};
-		VkDescriptorBufferInfo indexBufferDescriptor{sceneGLTF.allIndicesBuffer, 0, VK_WHOLE_SIZE};
-		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{sceneGLTF.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, scene.storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
+		VkDescriptorBufferInfo vertexBufferDescriptor{scene.allVerticesBuffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo indexBufferDescriptor{scene.allIndicesBuffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{scene.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};
 		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
-		imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
-		for (const auto &t : sceneGLTF.textureCache) {
+		imageAllTexturesInfo.reserve(scene.textureCacheSequential.size());
+		for (const auto &t : scene.textureCacheSequential) {
 			VkDescriptorImageInfo imageTextureMapInfo;
 			imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			imageTextureMapInfo.imageView = t.second->textureImageView;
-			imageTextureMapInfo.sampler = t.second->textureSampler;
+			imageTextureMapInfo.imageView = t->textureImageView;
+			imageTextureMapInfo.sampler = t->textureSampler;
 			imageAllTexturesInfo.push_back(imageTextureMapInfo);
 		}
-		VkDescriptorBufferInfo materialsBufferDescriptor{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo materialsBufferDescriptor{scene.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
 
-		VkDescriptorImageInfo envmapMapInfo{sceneGLTF.envMap.textureSampler, sceneGLTF.envMap.textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+		VkDescriptorImageInfo envmapMapInfo{scene.envMap.textureSampler, scene.envMap.textureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			// Binding 0: Top level acceleration structure
@@ -491,7 +491,7 @@ void createDescriptorSets() {
 			// Binding 5: Scene instance offset
 			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &offsetPrimsBufferDescriptor),
 			// Binding 6: all textures offset
-			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), sceneGLTF.textureCache.size()),
+			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, imageAllTexturesInfo.data(), scene.textureCacheSequential.size()),
 			// Binding 7: material buffer
 			writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &materialsBufferDescriptor),
 			// Binding 8: envmap image
@@ -564,7 +564,7 @@ void createRayTracingPipeline() {
 		// Binding 5: Offset buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 5),
 		// Binding 6: textures buffer
-		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 6, sceneGLTF.textureCache.size()),
+		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 6, scene.textureCacheSequential.size()),
 		// Binding 7: materials buffer
 		descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 7),
 		// Binding 8: envmap Image

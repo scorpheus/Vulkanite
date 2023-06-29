@@ -24,7 +24,7 @@ static void NVSDK_CONV NgxLogCallback(const char *message, NVSDK_NGX_Logging_Lev
 }
 
 bool initDLSS() {
-	createStorageImage(sceneGLTF.storageImagesDLSS, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, {swapChainExtent.width, swapChainExtent.height, 1});
+	createStorageImage(scene.storageImagesDLSS, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, {swapChainExtent.width, swapChainExtent.height, 1});
 	
 	NVSDK_NGX_FeatureCommonInfo featureCommonInfo = {};
 	featureCommonInfo.LoggingInfo.LoggingCallback = NgxLogCallback;
@@ -100,20 +100,20 @@ bool initDLSS() {
 
 void RenderDLSS(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness) {
 
-	NVSDK_NGX_Resource_VK inColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesRaytrace[imageIndex].view,
-	                                                                               sceneGLTF.storageImagesRaytrace[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-	                                                                               sceneGLTF.storageImagesRaytrace[imageIndex].format, WIDTH, HEIGHT, true);
-	NVSDK_NGX_Resource_VK outColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesDLSS[imageIndex].view, sceneGLTF.storageImagesDLSS[imageIndex].image,
-	                                                                                {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesDLSS[imageIndex].format, WIDTH,
+	NVSDK_NGX_Resource_VK inColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(scene.storageImagesRaytrace[imageIndex].view,
+	                                                                               scene.storageImagesRaytrace[imageIndex].image, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+	                                                                               scene.storageImagesRaytrace[imageIndex].format, WIDTH, HEIGHT, true);
+	NVSDK_NGX_Resource_VK outColorResource = NVSDK_NGX_Create_ImageView_Resource_VK(scene.storageImagesDLSS[imageIndex].view, scene.storageImagesDLSS[imageIndex].image,
+	                                                                                {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, scene.storageImagesDLSS[imageIndex].format, WIDTH,
 	                                                                                HEIGHT, true);
 
-	NVSDK_NGX_Resource_VK depthResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesDepth[imageIndex].view, sceneGLTF.storageImagesDepth[imageIndex].image,
-	                                                                             {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}, sceneGLTF.storageImagesDepth[imageIndex].format, WIDTH,
+	NVSDK_NGX_Resource_VK depthResource = NVSDK_NGX_Create_ImageView_Resource_VK(scene.storageImagesDepth[imageIndex].view, scene.storageImagesDepth[imageIndex].image,
+	                                                                             {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}, scene.storageImagesDepth[imageIndex].format, WIDTH,
 	                                                                             HEIGHT, true);
-	NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(sceneGLTF.storageImagesMotionVector[imageIndex].view,
-	                                                                                    sceneGLTF.storageImagesMotionVector[imageIndex].image,
+	NVSDK_NGX_Resource_VK motionVectorResource = NVSDK_NGX_Create_ImageView_Resource_VK(scene.storageImagesMotionVector[imageIndex].view,
+	                                                                                    scene.storageImagesMotionVector[imageIndex].image,
 	                                                                                    {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-	                                                                                    sceneGLTF.storageImagesMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
+	                                                                                    scene.storageImagesMotionVector[imageIndex].format, WIDTH, HEIGHT, true);
 
 
 	VkImageSubresourceRange subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};

@@ -26,7 +26,6 @@
 CMRC_DECLARE(gltf_rc);
 
 #include "camera.h"
-#include "loaderGltf.h"
 
 static std::vector<char> readFile(const std::string &filename) {
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
@@ -140,7 +139,7 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 	// all textures
 	VkDescriptorSetLayoutBinding samplerTexturesLayoutBinding;
 	samplerTexturesLayoutBinding.binding = 3;
-	samplerTexturesLayoutBinding.descriptorCount = sceneGLTF.textureCache.size();
+	samplerTexturesLayoutBinding.descriptorCount = scene.textureCacheSequential.size();
 	samplerTexturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerTexturesLayoutBinding.pImmutableSamplers = nullptr;
 	samplerTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -222,20 +221,20 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 
 		VkDescriptorImageInfo imageEnvMapInfo;
 		imageEnvMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageEnvMapInfo.imageView = sceneGLTF.envMap.textureImageView;
-		imageEnvMapInfo.sampler = sceneGLTF.envMap.textureSampler;
+		imageEnvMapInfo.imageView = scene.envMap.textureImageView;
+		imageEnvMapInfo.sampler = scene.envMap.textureSampler;
 
 		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
-		imageAllTexturesInfo.reserve(sceneGLTF.textureCache.size());
-		for (const auto &t : sceneGLTF.textureCache) {
+		imageAllTexturesInfo.reserve(scene.textureCacheSequential.size());
+		for (const auto &t : scene.textureCacheSequential) {
 			VkDescriptorImageInfo imageTextureMapInfo;
 			imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			imageTextureMapInfo.imageView = t.second->textureImageView;
-			imageTextureMapInfo.sampler = t.second->textureSampler;
+			imageTextureMapInfo.imageView = t->textureImageView;
+			imageTextureMapInfo.sampler = t->textureSampler;
 			imageAllTexturesInfo.push_back(imageTextureMapInfo);
 		}
 
-		VkDescriptorBufferInfo materialsInfo{sceneGLTF.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo materialsInfo{scene.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
 
 		std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
@@ -620,7 +619,7 @@ void createUniformBuffers(
 	}
 }
 
-void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm::mat4 &parent_world) {
+void updateUniformBuffer(uint32_t currentFrame, const objectVulkanite &obj, const glm::mat4 &parent_world) {
 	
 	//
 	UniformBufferObject ubo{};
@@ -634,7 +633,7 @@ void updateUniformBuffer(uint32_t currentFrame, const objectGLTF &obj, const glm
 	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
 
-void updateUniformBufferMotionVector(uint32_t currentFrame, objectGLTF &obj, const glm::mat4 &parent_world) {
+void updateUniformBufferMotionVector(uint32_t currentFrame, objectVulkanite &obj, const glm::mat4 &parent_world) {
 	UniformBufferObjectMotionVector ubo{};
 
 	auto JitterMatrix = glm::mat4(1);

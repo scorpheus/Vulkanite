@@ -1,4 +1,4 @@
-#include "loaderGltf.h"
+﻿#include "loader.h"
 
 #include "core_utils.h"
 #include "texture.h"
@@ -38,12 +38,28 @@ namespace fs = std::filesystem;
 
 // callback for filesystem for gltf, using inside block
 bool FileExistsVulkanite(const std::string &abs_filename, void *) {
-	return cmrcFS.exists(abs_filename);
+	return cmrcFS.exists(abs_filename) || fs::exists(fs::path(abs_filename));
 }
 
 bool ReadWholeFileVulkanite(std::vector<unsigned char> *out, std::string *err, const std::string &filepath, void *) {
-	auto fileRC = cmrcFS.open(filepath);
-	out->insert(out->begin(), fileRC.begin(), fileRC.end());
+	if (cmrcFS.exists(filepath)) {
+		auto fileRC = cmrcFS.open(filepath);
+		out->insert(out->begin(), fileRC.begin(), fileRC.end());
+	} else {
+		std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+		if (!file.is_open()) {
+			return false;
+		}
+
+		std::streamsize size = file.tellg();
+		file.seekg(0, std::ios::beg);
+
+		// Redimensionne le vecteur à la taille du fichier et le lit
+		out->resize(size);
+		if (!file.read((char *)out->data(), size)) {
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -53,7 +69,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 	if (image->uri.empty())
 		imageName = image->name.empty() ? fmt::format("{}", image_idx) : image->name;
 
-	const std::shared_ptr<textureGLTF> tex(new textureGLTF);
+	const std::shared_ptr<textureVulkanite> tex(new textureVulkanite);
 	tex->name = imageName;
 	tex->textureImage = nullptr;
 
@@ -139,7 +155,7 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 		createTextureSampler(tex->textureSampler, tex->mipLevels);
 
-		sceneGLTF.textureCache[image_idx + 1] = tex;
+		scene.textureCache[image_idx + 1] = tex;
 	}
 
 	return true;
@@ -294,7 +310,7 @@ struct m44fArray {
 };
 
 //
-//static void ImportMotions(const Model &model, const Scene &gltf_scene, std::vector<objectGLTF> &scene) {
+//static void ImportMotions(const Model &model, const Scene &gltf_scene, std::vector<objectVulkanite> &scene) {
 //
 //	// all animations
 //	spdlog::debug(fmt::format("animations(items={})", model.animations.size()).c_str());
@@ -302,7 +318,7 @@ struct m44fArray {
 //			const tinygltf::Animation &animation = model.animations[i];
 //			spdlog::debug(fmt::format(Indent(1) + "name         : {}", animation.name.empty() ? "anim_" + std::to_string(i) : animation.name).c_str());
 //
-//			std::vector<objectGLTF>Anim scene_anim{animation.name.empty() ? "anim_" + std::to_string(i) : animation.name, hg::time_from_sec(99999), hg::time_from_sec(-99999)};
+//			std::vector<objectVulkanite>Anim scene_anim{animation.name.empty() ? "anim_" + std::to_string(i) : animation.name, hg::time_from_sec(99999), hg::time_from_sec(-99999)};
 //
 //			std::vector<hg::AnimRef> anims;
 //
@@ -481,7 +497,7 @@ struct m44fArray {
 //}
 
 //
-//static void ImportSkins(const Model &model, const Scene &gltf_scene, std::vector<objectGLTF> &scene) {
+//static void ImportSkins(const Model &model, const Scene &gltf_scene, std::vector<objectVulkanite> &scene) {
 //	// all skins
 //	spdlog::debug(fmt::format("skin(items={})", model.skins.size()).c_str());
 //	for (size_t gltf_id_node = 0; gltf_id_node < model.nodes.size(); ++gltf_id_node) {
@@ -489,10 +505,10 @@ struct m44fArray {
 //			if (gltf_node.skin >= 0) {
 //			const auto &skin = model.skins[gltf_node.skin];
 //			auto node = scene.GetNode(idNode_to_NodeRef[gltf_id_node]);
-//			if (auto objectGLTF = node.GetObject()) {
-//				objectGLTF.SetBoneCount(skin.joints.size());
+//			if (auto objectVulkanite = node.GetObject()) {
+//				objectVulkanite.SetBoneCount(skin.joints.size());
 //				for (size_t j = 0; j < skin.joints.size(); j++)
-//					objectGLTF.SetBone(j, idNode_to_NodeRef[skin.joints[j]]);
+//					objectVulkanite.SetBone(j, idNode_to_NodeRef[skin.joints[j]]);
 //			}
 //			}
 //	}
@@ -517,8 +533,8 @@ static int ImportTexture(const Model &model, const int &textureIndex) {
 	if (image.uri.empty())
 		imageName = image.name.empty() ? fmt::format("{}", textureIndex) : image.name;
 
-	if (sceneGLTF.textureCache.find(textureSourceIndex + 1) != sceneGLTF.textureCache.end()) {
-		return textureSourceIndex + 1;
+	if (scene.textureCache.find(textureSourceIndex + 1) != scene.textureCache.end()) {
+		return scene.textureCache[textureSourceIndex + 1]->id;
 	}
 	return -1;
 	// auto texture = model.textures[textureIndex];
@@ -547,7 +563,7 @@ static int ImportTexture(const Model &model, const int &textureIndex) {
 	// return resources.textures.Add(dst_rel_path.c_str(), {flags, BGFX_INVALID_HANDLE});
 }
 
-static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
+static void ImportMaterial(const Model &model, const Material &gltf_mat, matVulkanite &mat) {
 	float glossiness{1.f};
 	float reflection{1.f};
 
@@ -555,7 +571,6 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	//
 	std::string dst_path;
-	matGLTF mat;
 
 	// BaseColor Texture
 	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >= 0) {
@@ -565,8 +580,8 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	// metallic Roughness Texture
 	if (auto metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture >= 0) {
-		mat.metallicRoughnessTex = metallicRoughnessTexture;
-		mat.metallicRoughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
+		mat.metallicTex = mat.roughnessTex = metallicRoughnessTexture;
+		mat.metallicTextureSet = mat.roughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
 	}
 
 	// ao Texture
@@ -627,14 +642,12 @@ static matGLTF ImportMaterial(const Model &model, const Material &gltf_mat) {
 
 	if (gltf_mat.doubleSided)
 		mat.doubleSided = true;
-
-	return std::move(mat);
 }
 
 #define __PolIndex (pol_index[p] + v)
 #define __PolRemapIndex (pol_index[p] + (geo.pol[p].vtx_count - 1 - v))
 
-static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, primMeshGLTF &prim) {
+static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, primMeshVulkanite &prim) {
 	// TODO detect instancing (using SHA1 on model)
 
 	// Boolean used to check if we have converted the vertex buffer format
@@ -1032,8 +1045,8 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, p
 }
 
 //
-static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &node, const int &gltf_id_node) {
-	// if there is no mesh or no skin, nothing inside objectGLTF
+static void ImportObject(const Model &model, const Node &gltf_node, objectVulkanite &node, const int &gltf_id_node) {
+	// if there is no mesh or no skin, nothing inside objectVulkanite
 	if (gltf_node.mesh < 0 && gltf_node.skin < 0)
 		return;
 
@@ -1044,25 +1057,22 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 		auto gltf_mesh = model.meshes[gltf_node.mesh];
 
 		for (auto meshPrimitive : gltf_mesh.primitives) {
-			objectGLTF subMesh{};
+			objectVulkanite subMesh{};
 			subMesh.id = meshPrimitive.indices;
 
 			// get the prim mesh from the cache
-			if (sceneGLTF.primsMeshCache.contains(subMesh.id))
+			if (scene.primsMeshCache.contains(subMesh.id))
 				subMesh.primMesh = subMesh.id;
 
 			// MATERIALS
 			if (meshPrimitive.material >= 0) {
-				subMesh.mat = meshPrimitive.material + 1;
-				//		if (prim.skin.size())
-				//			mat.flags |= hg::MF_EnableSkinning;
-
-				//	objectGLTF.SetMaterial(primitiveId, std::move(mat));
-				//	objectGLTF.SetMaterialName(primitiveId, gltf_mat.name.empty() ? fmt::format("mat_{}", primitiveId) : gltf_mat.name);
+				subMesh.matCacheID = meshPrimitive.material + 1;
+				subMesh.mat = scene.materialsCache[meshPrimitive.material + 1]->id;
 			} else {
-				// make a dummy material to see the objectGLTF in the engine
+				// make a dummy material to see the objectVulkanite in the engine
 				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
-
+				
+				subMesh.matCacheID = 0;
 				subMesh.mat = 0;
 			}
 
@@ -1070,12 +1080,12 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 #ifdef DRAW_RASTERIZE
 			createDescriptorPool(subMesh.descriptorPool);
 			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObject));
-			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObject), sceneGLTF.descriptorSetLayout, subMesh.descriptorPool, sceneGLTF.uniformParamsBuffers, sizeof(UBOParams));
+			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObject), scene.descriptorSetLayout, subMesh.descriptorPool, scene.uniformParamsBuffers, sizeof(UBOParams));
 #else
 			// motion vector
 			createDescriptorPoolMotionVector(subMesh.descriptorPool);
 			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObjectMotionVector));
-			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObjectMotionVector), sceneGLTF.descriptorSetLayout, subMesh.descriptorPool);
+			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObjectMotionVector), scene.descriptorSetLayout, subMesh.descriptorPool);
 #endif
 			node.children.push_back(std::move(subMesh));
 		}
@@ -1172,7 +1182,7 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectGLTF &
 }
 
 
-static void ImportCamera(const Model &model, const Node &gltf_node, objectGLTF &node) {
+static void ImportCamera(const Model &model, const Node &gltf_node, objectVulkanite &node) {
 	//auto camera = scene.CreateCamera();
 
 	//auto gltf_camera = model.cameras[gltf_node.camera];
@@ -1192,7 +1202,7 @@ static void ImportCamera(const Model &model, const Node &gltf_node, objectGLTF &
 	updateCamWorld(node.world);
 }
 
-//static void ImportLight(const Model &model, const size_t &id_light, hg::Node &node, std::vector<objectGLTF> &scene) {
+//static void ImportLight(const Model &model, const size_t &id_light, hg::Node &node, std::vector<objectVulkanite> &scene) {
 //	auto light = scene.CreateLight();
 //
 //	auto gltf_light = model.lights[id_light];
@@ -1217,9 +1227,9 @@ static void ImportCamera(const Model &model, const Node &gltf_node, objectGLTF &
 //}
 
 //
-static objectGLTF ImportNode(const Model &model, const int &gltf_id_node) {
+static objectVulkanite ImportNode(const Model &model, const int &gltf_id_node) {
 	const auto &gltf_node = model.nodes[gltf_id_node];
-	objectGLTF node{};
+	objectVulkanite node{};
 	node.name = gltf_node.name.empty() ? fmt::format("node{}", gltf_id_node) : gltf_node.name;
 	//idNode_to_NodeRef[gltf_id_node] = node.ref;
 
@@ -1279,26 +1289,33 @@ static objectGLTF ImportNode(const Model &model, const int &gltf_id_node) {
 	return std::move(node);
 }
 
-std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
+std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath) {
 	//
 	Model model;
 	TinyGLTF loader;
 	std::string err;
 	std::string warn;
 
-	auto gltfRC = cmrcFS.open(scenePath);
-
 	// set our own save picture
 	loader.SetImageLoader(LoadImageDataEx, nullptr);
 	// callback for filesystem for gltf, using inside block
 	loader.SetFsCallbacks({&FileExistsVulkanite, &ExpandFilePath, &ReadWholeFileVulkanite, &WriteWholeFile});
+
 	bool ret;
-	if (fs::path(scenePath).extension() == ".gltf")
-		//	ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
-		ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), fs::path(scenePath).parent_path().string());
-	else
-		//	ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
-		ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char*>(gltfRC.cbegin()), gltfRC.size());
+	if (fs::path(scenePath).extension() == ".gltf") {
+		if (cmrcFS.exists(scenePath)) {
+			auto gltfRC = cmrcFS.open(scenePath);
+			ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), fs::path(scenePath).parent_path().string());
+		} else
+			ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
+	} else {
+		if (cmrcFS.exists(scenePath)) {
+			auto gltfRC = cmrcFS.open(scenePath);
+			ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char *>(gltfRC.cbegin()), gltfRC.size());
+		} else
+			ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
+	}
+
 	if (!ret) {
 		spdlog::error(fmt::format("failed to load {}: {}", scenePath, err));
 		return {};
@@ -1326,47 +1343,69 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 
 	// create white texture
 	{
-		std::string imageName("WhiteTex");
+		std::string imageName( "WhiteTex" );
 
-		const std::shared_ptr<textureGLTF> tex(new textureGLTF);
+		const std::shared_ptr<textureVulkanite> tex( new textureVulkanite );
 		tex->name = imageName;
-		auto texRC = cmrcFS.open("textures/WhiteTex.png");
-		createTextureImage(reinterpret_cast<const unsigned char*>(texRC.cbegin()), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels);
-		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-		createTextureSampler(tex->textureSampler, tex->mipLevels);
-		sceneGLTF.textureCache[0] = tex;
+		auto texRC = cmrcFS.open( "textures/WhiteTex.png" );
+		createTextureImage( reinterpret_cast< const unsigned char* >( texRC.cbegin() ), texRC.size(), tex->textureImage, tex->textureImageMemory, tex->mipLevels );
+		tex->textureImageView = createTextureImageView( tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM );
+		createTextureSampler( tex->textureSampler, tex->mipLevels );
+		scene.textureCache[0] = tex;
 	}
 
+	// save sequentially all textures
+	scene.textureCacheSequential.reserve( scene.textureCache.size() );
+
+	uint32_t counterTexture = 0;
+	for( auto& pair : scene.textureCache ) {
+		pair.second->id = counterTexture++;
+		scene.textureCacheSequential.push_back( pair.second );
+	}
+
+
 	// load all materials
-	sceneGLTF.materialsCache.resize(model.materials.size() + 1);
-	sceneGLTF.materialsCache[0] = matGLTF{};
+	scene.materialsCache[0] = std::make_shared<matVulkanite>();
 
 	int counter = 1;
-	for (const auto &mat : model.materials)
-		sceneGLTF.materialsCache[counter++] = ImportMaterial(model, mat);
+	for (const auto &mat : model.materials){
+		auto matV = std::make_shared<matVulkanite>();
+		ImportMaterial(model, mat, *matV);
+		scene.materialsCache[counter++] = matV;
+	}
+
+	std::vector<matVulkanite> materialsVector;
+	materialsVector.reserve(scene.materialsCache.size());
+	
+	uint32_t counterMaterial = 0;
+	for (auto& pair : scene.materialsCache) {
+		pair.second->id = counterMaterial++;
+		materialsVector.push_back(*pair.second);
+	}
+	
 	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.materialsCacheBuffer, sizeof(matGLTF) * sceneGLTF.materialsCache.size(),
-	             sceneGLTF.materialsCache.data());
+	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.materialsCacheBuffer, sizeof(matVulkanite) * materialsVector.size(),
+	             materialsVector.data());
 
 #ifdef DRAW_RASTERIZE
 	// create the graphic pipeline with the right amount of textures
-	createDescriptorSetLayout(sceneGLTF.descriptorSetLayout);
-	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", sceneGLTF.pipelineLayout, sceneGLTF.graphicsPipeline, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, false);
-	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", sceneGLTF.pipelineLayoutAlpha, sceneGLTF.graphicsPipelineAlpha, sceneGLTF.renderPass, msaaSamples, sceneGLTF.descriptorSetLayout, true);
+	createDescriptorSetLayout(scene.descriptorSetLayout);
+	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, msaaSamples, scene.descriptorSetLayout, false);
+	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, msaaSamples, scene.descriptorSetLayout, true);
 #endif
 
 	// load all prims
 	for (const auto &mesh : model.meshes) {
 		for (const auto &meshPrimitive : mesh.primitives) {
-			if (sceneGLTF.primsMeshCache.contains(meshPrimitive.indices))
+			if (scene.primsMeshCache.contains(meshPrimitive.indices))
 				continue;
 
-			auto primMesh = std::make_shared<primMeshGLTF>();
+			auto primMesh = std::make_shared<primMeshVulkanite>();
 			ImportGeometry(model, meshPrimitive, *primMesh);
 			createVertexBuffer(primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory);
 			createIndexBuffer(primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory);
 
-			sceneGLTF.primsMeshCache[meshPrimitive.indices] = primMesh;
+			scene.primsMeshCache[meshPrimitive.indices] = primMesh;
 		}
 	}
 	// make the big vertex cache and compute the offset for each prims
@@ -1377,7 +1416,7 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	};
 	std::vector<offsetPrim> offsetPrims;
 	uint32_t counterPrim = 0;
-	for (auto &prim : sceneGLTF.primsMeshCache) {
+	for (auto &prim : scene.primsMeshCache) {
 		prim.second->id = counterPrim;
 		offsetPrims.push_back({static_cast<uint32_t>(allVertices.size()), static_cast<uint32_t>(allIndices.size())});
 		allVertices.insert(allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end());
@@ -1387,23 +1426,23 @@ std::vector<objectGLTF> loadSceneGltf(const std::string &scenePath) {
 	// store these buffer in vkBuffer
 	VkDeviceMemory allVerticesBufferMemory;
 	VkDeviceMemory allIndicesBufferMemory;
-	createVertexBuffer(allVertices, sceneGLTF.allVerticesBuffer, allVerticesBufferMemory);
-	createIndexBuffer(allIndices, sceneGLTF.allIndicesBuffer, allIndicesBufferMemory);
+	createVertexBuffer(allVertices, scene.allVerticesBuffer, allVerticesBufferMemory);
+	createIndexBuffer(allIndices, scene.allIndicesBuffer, allIndicesBufferMemory);
 	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &sceneGLTF.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(),
+	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(),
 	             offsetPrims.data());
 
 	// Handle only one big scene
-	std::vector<objectGLTF> scene;
+	std::vector<objectVulkanite> nodesHierarchy;
 	for (auto gltf_scene : model.scenes) {
 		for (auto gltf_id_node : gltf_scene.nodes) {
 			auto node = ImportNode(model, gltf_id_node);
-			scene.push_back(std::move(node));
+			nodesHierarchy.push_back(std::move(node));
 		}
 
 		//ImportMotions(model, gltf_scene, scene, config);
 		//ImportSkins(model, gltf_scene, scene, config);		
 	}
 
-	return std::move(scene);
+	return std::move(nodesHierarchy);
 }

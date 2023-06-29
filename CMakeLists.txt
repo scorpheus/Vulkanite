@@ -34,7 +34,7 @@ if(MSVC)
 	# Make Visual Studio report accurate C++ version
 	# See: https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
   # /Wall emits warnings about the C++ standard library
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /GS- /Zc:__cplusplus")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /GS- /Zc:__cplusplus /Ot")
 
 	add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 	add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -96,7 +96,7 @@ add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL
 
 find_package(Vulkan)
 if(Vulkan_FOUND)
-	target_link_libraries(Vulkanite ${Vulkan_LIBRARY})
+	target_link_libraries(Vulkanite PUBLIC ${Vulkan_LIBRARY})
 	target_include_directories(Vulkanite PUBLIC ${Vulkan_INCLUDE_DIRS})
 endif()
 
@@ -109,39 +109,105 @@ if(WIN32)
 	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! USD
+set(USD_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/usd" CACHE PATH "Path to the USD build directory")
 
-# ressources include in exe
+if (WIN32)
+    # ".lib" on Windows
+    set(USD_LIB_SUFFIX ${CMAKE_STATIC_LIBRARY_SUFFIX}
+        CACHE STRING "Extension of USD libraries")
+else ()
+    # ".so" on Linux, ".dylib" on MacOS
+    set(USD_LIB_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
+        CACHE STRING "Extension of USD libraries")
+endif ()
+
+foreach(TYPE Release Debug)
+	# look for usd project
+	set(pxr_DIR "${USD_SDK_DIR}/USD_build_${TYPE}")
+
+#	find_package(Boost PATHS pxr_DIR) # headers only
+
+	target_link_libraries(Vulkanite PUBLIC  
+								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/tbb_debug${USD_LIB_SUFFIX}> 
+								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/tbb${USD_LIB_SUFFIX}> 
+								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/usd_usd_ms${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX}>)
+
+	target_include_directories(Vulkanite PUBLIC	$<$<CONFIG:${TYPE}>:${pxr_DIR}/include> 
+													$<$<CONFIG:${TYPE}>:${pxr_DIR}/include/boost-1_78>)
+												#	$<$<CONFIG:${TYPE}>:${Boost_INCLUDE_DIRS}>)
+
+	install(DIRECTORY "${pxr_DIR}/lib/"
+ 			CONFIGURATIONS ${TYPE}
+ 	 		DESTINATION Vulkanite COMPONENT Vulkanite
+ 			FILES_MATCHING PATTERN "*.dll")
+	install(DIRECTORY "${pxr_DIR}/lib/usd"
+ 			CONFIGURATIONS ${TYPE}
+ 			DESTINATION Vulkanite COMPONENT Vulkanite)
+	install(DIRECTORY "${pxr_DIR}/bin/"
+ 			CONFIGURATIONS ${TYPE}
+ 			DESTINATION Vulkanite COMPONENT Vulkanite
+ 			FILES_MATCHING PATTERN "*.dll")
+endforeach()
+
+# usd importer install
+add_custom_target(usd_copy ALL
+	COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DBUILD_TYPE=$<CONFIG> -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+	DEPENDS Vulkanite
+)
+set_target_properties(usd_copy PROPERTIES FOLDER "CMakePredefinedTargets")
+
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Ressources include in exe
+option(INCLUDE_MODEL "Mettre le model 3D dans l'exe" OFF)
+
 include(cmake/CMakeRC.cmake)
 
 set(ENVMAP textures/limpopo_golf_course_1k.hdr)
 #set(MODEL_GLTF_PATH models/abeautifulgame_ktx.glb)
-set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
+
+#set(MODEL_GLTF_PATH models/simple_texture_plane.usda)
+set(MODEL_GLTF_PATH models/simple_texture_cube.usda)
+#set(MODEL_GLTF_PATH models/Attic_NVIDIA/Attic_NVIDIA.usd)
+
+#set(MODEL_GLTF_PATH models/BoxTextured.glb)
+#set(MODEL_GLTF_PATH models/abeautifulgame_draco.glb)
+#set(MODEL_GLTF_PATH models/DragonAttenuation.glb)
+#set(MODEL_GLTF_PATH models/IridescentDishWithOlives.glb)
+#set(MODEL_GLTF_PATH models/MosquitoInAmber.glb)
+
 #file(GLOB model_RC "models/glTF-KTX-BasisU/*.*")
 #set(MODEL_GLTF_PATH models/suzanne_metal.glb)
 #set(MODEL_GLTF_PATH models/BoxTextured.glb)
 #set(MODEL_GLTF_PATH models/sponza.glb)
 #set(MODEL_GLTF_PATH models/TransmissionTest.glb)
 
-cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc 
-	${ENVMAP}
-	${MODEL_GLTF_PATH}	
-	textures/WhiteTex.png
-	spv/closesthit.rchit.spv
-	spv/miss.rmiss.spv
-	spv/raygen.rgen.spv
-	spv/shader.frag.spv
-	spv/shader.vert.spv
-	spv/shadow.rmiss.spv
-	spv/shaderMotionVector.frag.spv
-	spv/shaderMotionVector.vert.spv	
+set(LIST_RESOURCES 
+		${ENVMAP}
+		textures/WhiteTex.png
+		spv/closesthit.rchit.spv
+		spv/miss.rmiss.spv
+		spv/raygen.rgen.spv
+		spv/shader.frag.spv
+		spv/shader.vert.spv
+		spv/shadow.rmiss.spv
+		spv/shaderMotionVector.frag.spv
+		spv/shaderMotionVector.vert.spv	
 )
+if(INCLUDE_MODEL)	
+	list(APPEND LIST_RESOURCES ${MODEL_GLTF_PATH})
+endif()
+
+cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc ${LIST_RESOURCES})
+
 set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-target_link_libraries(Vulkanite gltf-resources)
+target_link_libraries(Vulkanite PUBLIC gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
 
 # dlss
 target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/x86_64)
-target_link_libraries(Vulkanite debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
+target_link_libraries(Vulkanite PUBLIC debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
 
 # modify where cmake install directory
@@ -152,8 +218,15 @@ install(TARGETS Vulkanite ARCHIVE DESTINATION Vulkanite RUNTIME DESTINATION Vulk
 install(DIRECTORY extern/DLSS/lib/Windows_x86_64/rel/ DESTINATION Vulkanite COMPONENT Vulkanite)
 add_custom_command(TARGET Vulkanite POST_BUILD 
                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-               "${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll"              
+               "${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll"
                 $<TARGET_FILE_DIR:Vulkanite>)
+
+# if not include GLTF, copy near the exe
+if(NOT INCLUDE_MODEL)
+	get_filename_component(PARENT_DIR ${MODEL_GLTF_PATH} DIRECTORY)
+	install(FILES ${MODEL_GLTF_PATH} DESTINATION "Vulkanite/${PARENT_DIR}" COMPONENT Vulkanite)
+endif()
 
 # add the spherical harmonics extractor project
 add_subdirectory("SphericalHarmonicsExtractor")
+

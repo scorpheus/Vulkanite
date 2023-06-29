@@ -2,7 +2,7 @@
 
 #include <map>
 
-#include "loaderGltf.h"
+#include "loader.h"
 #include "VulkanBuffer.h"
 
 //#define DRAW_RASTERIZE
@@ -30,18 +30,19 @@ struct UniformBufferObjectMotionVector {
 };
 
 struct SceneVulkanite {
-	textureGLTF envMap;
+	textureVulkanite envMap;
 
-	std::vector<objectGLTF> roots;
+	std::vector<objectVulkanite> roots;
 
 	VkBuffer allVerticesBuffer;
 	VkBuffer allIndicesBuffer;
 	Buffer offsetPrimsBuffer;
 	Buffer materialsCacheBuffer;
 
-	std::map<uint32_t, std::shared_ptr<textureGLTF>> textureCache;
-	std::map<uint32_t, std::shared_ptr<primMeshGLTF>> primsMeshCache;
-	std::vector<matGLTF> materialsCache;
+	std::map<uint32_t, std::shared_ptr<textureVulkanite>> textureCache;
+	std::vector<std::shared_ptr<textureVulkanite>> textureCacheSequential;
+	std::map<uint32_t, std::shared_ptr<primMeshVulkanite>> primsMeshCache;
+	std::map<uint32_t, std::shared_ptr<matVulkanite>> materialsCache;
 	
 	std::vector<StorageImage> storageImagesRaytrace;
 	std::vector<StorageImage> storageImagesMotionVector, storageImagesDepth;
@@ -67,13 +68,13 @@ struct SceneVulkanite {
 
 };
 
-extern SceneVulkanite sceneGLTF;
+extern SceneVulkanite scene;
 extern bool USE_DLSS;
 
-void loadSceneGLTF();
-void initSceneGLTF();
-void updateSceneGLTF(float deltaTime);
-void drawSceneGLTF(VkCommandBuffer commandBuffer, uint32_t currentFrame);
+void loadScene();
+void initScene();
+void updateScene(float deltaTime);
+void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame);
 void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 void destroyScene();
 void deleteModel();

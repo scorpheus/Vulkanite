@@ -133,7 +133,7 @@ private:
 		createCommandBuffer();
 		createSyncObjects();
 
-		initSceneGLTF();
+		initScene();
 	}
 
 	void mainLoop() {
@@ -695,7 +695,7 @@ private:
 
 		updateCamera(window, deltaTime);
 		updateJitter(jitterCam, frameIndex);
-		updateSceneGLTF(deltaTime);
+		updateScene(deltaTime);
 		
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -768,7 +768,7 @@ private:
 };
 
 int main() {
-#ifdef DEBUG
+#ifdef _DEBUG
 	spdlog::set_level(spdlog::level::debug);
 #else
 	spdlog::set_level(spdlog::level::info);
@@ -777,12 +777,13 @@ int main() {
 
 	VulkaniteApplication app;
 
-	try {
+//	try {
 		app.run();
-	} catch (const std::exception &e) {
+/*	}
+	catch (const std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		return EXIT_FAILURE;
-	}
+	}*/
 
 	return EXIT_SUCCESS;
 }

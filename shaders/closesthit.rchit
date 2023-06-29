@@ -27,14 +27,26 @@ struct OffsetPrim{
 };
 
 struct Material{
-	bool doubleSided;
+	uint id;
 	uint albedoTex;
-	uint metallicRoughnessTex;
+	uint metallicTex;
+	uint roughnessTex;
 	uint aoTex;
 	uint normalTex;
 	uint emissiveTex;
 	uint transmissionTex;
 
+	int colorTextureSet;
+	int metallicTextureSet;
+	int roughnessTextureSet;
+	int normalTextureSet;
+	int occlusionTextureSet;
+	int emissiveTextureSet;
+	int transmissionTextureSet;
+
+	bool doubleSided; 
+	
+	float occlusionFactor;
 	float metallicFactor;
 	float roughnessFactor;
 	float alphaMask;
@@ -42,12 +54,6 @@ struct Material{
 	float transmissionFactor;
 	float ior;
 
-	int colorTextureSet;
-	int metallicRoughnessTextureSet;
-	int normalTextureSet;
-	int occlusionTextureSet;
-	int emissiveTextureSet;
-	int transmissionTextureSet;
 	vec4 baseColorFactor;
 	vec3 emissiveFactor;
 };
@@ -511,9 +517,9 @@ void main()
 		return;
 	}
 		 
-	float occlusion = texture(texturesMap[mat.aoTex], mat.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
-	float metalness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * mat.metallicFactor;
-	float roughness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * mat.roughnessFactor;
+	float occlusion = texture(texturesMap[mat.aoTex], mat.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r * mat.occlusionFactor;
+	float metalness = texture(texturesMap[mat.metallicTex], mat.metallicTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * mat.metallicFactor;
+	float roughness = texture(texturesMap[mat.roughnessTex], mat.roughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * mat.roughnessFactor;
 		
 	vec3 emissive = texture(texturesMap[mat.emissiveTex], mat.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * mat.emissiveFactor;
 	float transmission = texture(texturesMap[mat.transmissionTex], mat.transmissionTextureSet== 0 ? fragTexCoord0 : fragTexCoord1).x * mat.transmissionFactor;

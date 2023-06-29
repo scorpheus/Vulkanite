@@ -30,28 +30,35 @@ layout(binding = 3) uniform sampler2D texturesMap[];
 
 // Material bindings
 struct Material{
-	bool doubleSided;
+	uint id;
 	uint albedoTex;
-	uint metallicRoughnessTex;
+	uint metallicTex;
+	uint roughnessTex;
 	uint aoTex;
 	uint normalTex;
 	uint emissiveTex;
 	uint transmissionTex;
+	
+	int colorTextureSet;
+	int metallicTextureSet;
+	int roughnessTextureSet;
+	int normalTextureSet;
+	int occlusionTextureSet;
+	int emissiveTextureSet;
+	int transmissionTextureSet;
 
+	int doubleSided;
+
+	float occlusionFactor;
 	float metallicFactor;
 	float roughnessFactor;
 	float alphaMask;
 	float alphaMaskCutoff;
 	float transmissionFactor;
 	float ior;
-	int colorTextureSet;
-	int metallicRoughnessTextureSet;
-	int normalTextureSet;
-	int occlusionTextureSet;
-	int emissiveTextureSet;
-	int transmissionTextureSet;
+
 	vec4 baseColorFactor;
-	vec3 emissiveFactor;
+	vec4 emissiveFactor;
 };
 
 layout(binding = 4) buffer MaterialMap {Material v[]; } materialsMap;
@@ -513,12 +520,12 @@ void main() {
 	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff)
 		discard;
 	 
-	float occlusion = texture(texturesMap[mat.aoTex], mat.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r;
-	float metalness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * mat.metallicFactor;
-	float roughness = texture(texturesMap[mat.metallicRoughnessTex], mat.metallicRoughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * mat.roughnessFactor;
+	float occlusion = texture(texturesMap[mat.aoTex], mat.occlusionTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).r * mat.occlusionFactor;
+	float metalness = texture(texturesMap[mat.metallicTex], mat.metallicTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).b * mat.metallicFactor;
+	float roughness = texture(texturesMap[mat.roughnessTex], mat.roughnessTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).g * mat.roughnessFactor;
 
 	
-	vec3 emissive = texture(texturesMap[mat.emissiveTex], mat.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * mat.emissiveFactor;
+	vec3 emissive = texture(texturesMap[mat.emissiveTex], mat.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * mat.emissiveFactor.xyz;
 
 	//
 	vec3 view = (ubo.view * vec4(fragWorldPos, 1.0)).xyz;

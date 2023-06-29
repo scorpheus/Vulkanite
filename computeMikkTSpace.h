@@ -1,12 +1,12 @@
 #pragma once
 
-#include "loaderGltf.h"
+#include "loader.h"
 #include "mikktspace.h"
 
 class CalcTangents {
 public:
 	CalcTangents();
-	void calc(primMeshGLTF *mesh);
+	void calc(primMeshVulkanite *mesh);
 
 private:
 	SMikkTSpaceInterface iface{};

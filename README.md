@@ -24,3 +24,14 @@ Full Raytracing
 Full Rasterization  
 ![alt text](screenshots/screenshot3.jpg "Rasterization")
 ![alt text](screenshots/screenshot4.jpg "Rasterization")
+
+Build USD:
+
+cd extern/USD
+git clone -b v22.05a --depth 1 https://github.com/PixarAnimationStudios/USD.git
+cd USD
+git apply ../usd.patch
+cd ..      
+mkdir build
+C:\anaconda3\ppython USD\build_scripts\build_usd.py --build-variant release --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --materialx --ptex --build-monolithic USD_build_Release
+C:\anaconda3\python USD\build_scripts\build_usd.py --build-variant debug --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --opencolorio --materialx --ptex --build-monolithic USD_build_Debug
