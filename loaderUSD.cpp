@@ -76,6 +76,9 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 
 	// get all inputs
 	for( const auto& input : shaderUSD.GetInputs() ) {
+		if(!input)
+			continue;
+
 		auto attrs = input.GetValueProducingAttributes();
 		if( attrs.size() ) {
 			auto baseNameShaderInput = input.GetAttr().GetBaseName().GetString();
@@ -273,7 +276,10 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 				memcpy( &v.norm.x, normals[index].data(), sizeof( float ) * 3 );
 
 			if( index < uvs[0].size() )
+			{
 				memcpy( &v.texCoord0.x, uvs[0][index].data(), sizeof( float ) * 2 );
+				v.texCoord0.y = 1.f - v.texCoord0.y;
+			}
 			else
 				memset( &v.texCoord0.x, 0, sizeof( float ) * 2 );
 
@@ -672,19 +678,12 @@ static glm::mat4 GetXFormMat( const pxr::UsdPrim& p ) {
 	pxr::GfMatrix4d transform;
 	bool resetsXformStack;
 	xForm.GetLocalTransformation( &transform, &resetsXformStack );
+
 	return glm::make_mat4x4( transform.data() );
-
-	//glm::mat4 m(transform.data()[0], transform.data()[1], transform.data()[2], transform.data()[4], transform.data()[5], transform.data()[6], transform.data()[8],
-	//	transform.data()[9], transform.data()[10], transform.data()[12], transform.data()[13], transform.data()[14]);
-
-	//auto t = hg::GetT(m) * pxr::UsdGeomGetStageMetersPerUnit(p.GetStage());
-	//hg::SetT(m, t);
-
-	//return m;
 }
 
 //
-static objectVulkanite ImportNode( const pxr::UsdPrim& p ) {
+static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &parent_world ) {
 
 	auto type = p.GetTypeName();
 
@@ -699,11 +698,22 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p ) {
 
 	// Camera
 	if( type == "Camera" ) {
-		//m = m * glm::mat4(hg::RotationMatX(hg::Pi)) * glm::mat4(hg::RotationMatZ(hg::Pi));
-		//auto s = hg::GetS(m);
-		//hg::SetS(m, hg::Vec3(-s.x, s.y, s.z));
-	//	ImportCamera(p, &node);		
-		updateCamWorld( node.world );
+		glm::mat4 m(
+			1.f, 0.f, 0.f, 0.f,
+			0.f, 0.f, 1.f, 0.f,
+			0.f, -1.f, 0.f, 0.f,
+			0.f, 0.f, 0.f, 1.f );
+		glm::mat4 flipY(
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, -1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		);
+
+		glm::mat4 world = parent_world * node.world;
+		world = flipY * m * world;
+		world = world * glm::rotate( glm::mat4( 1.0f ), glm::radians( 180.0f ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
+		updateCamWorld( world );
 	}// light
 	/*else if (type == "DomeLight" || type == "DistantLight" || type == "SphereLight") {
 		ExportLight(p, type, &node);
@@ -809,16 +819,76 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p ) {
 		auto type = c.GetTypeName();
 		if( type == "Material" || type == "Shader" ) // don't import node to scene for these types
 			continue;
-		auto child = ImportNode( c );
+		auto child = ImportNode( c, parent_world * node.world);
 		node.children.push_back( std::move( child ) );
 	}
 
-	return std::move( node );
+	return node;
 }
 
-void ImportTexture( pxr::UsdStage& stage ) {
+//void ImportTexture(pxr::UsdStageRefPtr stage) {
+//    std::hash<std::string> hasher;
+//    pxr::ArResolver& resolver = pxr::ArGetResolver();
+//    
+//    for (const auto& prim : stage->TraverseAll()) {
+//        auto attr = prim.GetAttribute(pxr::UsdShadeTokens->infoId);
+//        if (!attr) continue;
+//        
+//        pxr::TfToken infoId;
+//        attr.Get(&infoId);
+//        if (infoId.GetString() != "UsdUVTexture") continue;
+//
+//        pxr::UsdShadeShader shaderTexture(prim);
+//        for (const auto& input : shaderTexture.GetInputs()) {
+//            if (input.GetBaseName().GetString() != "file") continue;
+//
+//            pxr::SdfAssetPath assetPath("", "");
+//            input.GetAttr().Get(&assetPath, 0);
+//
+//            if (assetPath.GetResolvedPath().empty()) {
+//                std::string assetPathToCheck = assetPath.GetAssetPath();
+//                ReplaceAll(assetPathToCheck, "<UDIM>", "1001");
+//                auto resolvedPath = resolver.Resolve(assetPathToCheck);
+//                assetPath = pxr::SdfAssetPath(assetPath.GetAssetPath(), resolvedPath);
+//            }
+//
+//            if (assetPath.GetResolvedPath().empty()) {
+//                spdlog::error(fmt::format("Can't find asset with path {}", assetPath.GetAssetPath()));
+//                continue;
+//            }
+//
+//            auto textureAsset = resolver.OpenAsset(pxr::ArResolvedPath(assetPath.GetResolvedPath()));
+//            int hashIdentifierPrim = hasher(std::string(textureAsset->GetBuffer().get(), textureAsset->GetSize()));
+//            
+//            if (scene.textureCache.find(hashIdentifierPrim) != scene.textureCache.end()) {
+//                scene.textureCache[hasher(assetPath.GetAssetPath())] = scene.textureCache[hashIdentifierPrim];
+//                continue;
+//            }
+//
+//            std::shared_ptr<textureVulkanite> tex(new textureVulkanite);
+//         //   tex->name = assetPath.GetResolvedPath();
+//            tex->textureImage = nullptr;
+//
+//            createTextureImage(reinterpret_cast<const unsigned char*>(textureAsset->GetBuffer().get()), 
+//                               textureAsset->GetSize(), 
+//                               tex->textureImage, 
+//                               tex->textureImageMemory, 
+//                               tex->mipLevels);
+//
+//            if (!tex->textureImage) continue;
+//
+//            tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
+//            createTextureSampler(tex->textureSampler, tex->mipLevels);
+//
+//            scene.textureCache[hashIdentifierPrim] = tex;
+//            scene.textureCache[hasher(assetPath.GetAssetPath())] = tex;
+//        }
+//    }
+//}
+//
+void ImportTexture( pxr::UsdStageRefPtr stage ) {
 
-	for( const auto& p : stage.TraverseAll() ) {
+	for( const auto& p : stage->TraverseAll() ) {
 		// look for usdUvTexture in all prim
 		if( pxr::UsdAttribute attr = p.GetAttribute( pxr::UsdShadeTokens->infoId ) ) {
 			pxr::TfToken infoId;
@@ -833,12 +903,11 @@ void ImportTexture( pxr::UsdStage& stage ) {
 
 					if( baseName == "file" ) {
 						// Retrieve the asset file.
+						pxr::ArResolverContextBinder resolverContextBinder(p.GetStage()->GetPathResolverContext());
+						pxr::ArResolver& resolver = pxr::ArGetResolver();
+
 						pxr::SdfAssetPath assetPath;
 						attrTexture.Get( &assetPath, 0 );
-
-						//	pxr::ArResolverContextBinder resolverContextBinder(p.GetStage()->GetPathResolverContext());
-						pxr::ArResolver& resolver = pxr::ArGetResolver();
-						resolver.RefreshContext( p.GetStage()->GetPathResolverContext() );
 
 						// FIXME: Arbitrarily replace <UDIM> with 1001. Currently unsure how to resolve this.
 						if( assetPath.GetResolvedPath() == "" ) {
@@ -887,14 +956,16 @@ void ImportTexture( pxr::UsdStage& stage ) {
 }
 
 std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
+	{
+		pxr::SdfAssetPath assetPath;
+	}
 	//
 	auto stage = pxr::UsdStage::Open( path );
 	std::vector<objectVulkanite> nodesHierarchy;
-
-	//pxr::ArResolverContextBinder resolverContextBinder( stage->GetPathResolverContext() );
+	pxr::ArResolverContextBinder resolverContextBinder( stage->GetPathResolverContext() );
 
 	// improt all textures
-	ImportTexture( *stage );
+	ImportTexture( stage );
 
 	// create white texture
 	{
@@ -923,7 +994,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 
 	std::function<void( const pxr::UsdPrim& )> fLoadAllMaterials;
 
-	fLoadAllMaterials = [&]( const pxr::UsdPrim& p ) {
+	fLoadAllMaterials = [&]( const pxr::UsdPrim p ) {
 		auto type = p.GetTypeName();
 		if( type == "Mesh" || type == "GeomSubset" ) {
 
@@ -932,55 +1003,57 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 			std::string path = p.GetPath().GetString();
 
 			pxr::UsdShadeMaterialBindingAPI materialBinding( p );
-			auto binding = materialBinding.GetDirectBinding();
-			if( pxr::UsdShadeMaterial shadeMaterial = binding.GetMaterial() ) {
-				pxr::UsdShadeShader shader = shadeMaterial.ComputeSurfaceSource();
+			if( materialBinding ) {
+				auto binding = materialBinding.GetDirectBinding();
+				if( pxr::UsdShadeMaterial shadeMaterial = binding.GetMaterial() ) {
+					pxr::UsdShadeShader shader = shadeMaterial.ComputeSurfaceSource();
 
-				// if there is no shader with defaut render context, find the ONE
-				if( !shader ) {
-					// find the output surface with the UsdPreviewSurface (we handle this one for now)
-					auto outputs = shadeMaterial.GetSurfaceOutputs();
-					for( const auto& output : outputs ) {
-						if( output.HasConnectedSource() ) {
-							// get the source connected to the output
-							auto sourceOutput = output.GetConnectedSources()[0].source;
-							auto sourceShaderName = sourceOutput.GetPrim().GetName().GetString();
-							if( sourceShaderName == "UsdPreviewSurface" )
-								shader = pxr::UsdShadeShader( sourceOutput.GetPrim() );
+					// if there is no shader with defaut render context, find the ONE
+					if( !shader ) {
+						// find the output surface with the UsdPreviewSurface (we handle this one for now)
+						auto outputs = shadeMaterial.GetSurfaceOutputs();
+						for( const auto& output : outputs ) {
+							if( output.HasConnectedSource() ) {
+								// get the source connected to the output
+								auto sourceOutput = output.GetConnectedSources()[0].source;
+								auto sourceShaderName = sourceOutput.GetPrim().GetName().GetString();
+								if( sourceShaderName == "UsdPreviewSurface" )
+									shader = pxr::UsdShadeShader( sourceOutput.GetPrim() );
+							}
 						}
 					}
+
+					if( shader ) {
+						std::hash<std::string> hasher;
+						size_t hashIdentifierPrim = hasher( shader.GetPath().GetString() );
+
+						// if prims already loaded
+						if( hashIdentifierPrim == 0 || scene.materialsCache.contains( hashIdentifierPrim ) )
+							return;
+
+						// get the material
+						auto mat = std::make_shared<matVulkanite>();
+						std::set<pxr::TfToken> uvMapVarname;
+						ImportMaterial( shader, uvMapVarname, *p.GetStage(), *mat );
+						/*
+						if (geo.skin.size())
+							mat.flags |= hg::MF_EnableSkinning;
+						*/
+
+						// check double side
+						bool isDoubleSided = false;
+						geoUSD.GetDoubleSidedAttr().Get( &isDoubleSided );
+						// if it's a geo subset check the parent 
+						if( p.GetTypeName() == "GeomSubset" )
+							pxr::UsdGeomMesh( p.GetParent() ).GetDoubleSidedAttr().Get( &isDoubleSided );
+
+						mat->doubleSided = isDoubleSided;
+
+						scene.materialsCache[hashIdentifierPrim] = mat;
+					}
+					else
+						spdlog::error( "!Unexpected shader from UsdShadeShader()" );
 				}
-
-				if( shader ) {
-					std::hash<std::string> hasher;
-					size_t hashIdentifierPrim = hasher( shader.GetPath().GetString() );
-
-					// if prims already loaded
-					if( hashIdentifierPrim == 0 || scene.materialsCache.contains( hashIdentifierPrim ) )
-						return;
-
-					// get the material
-					auto mat = std::make_shared<matVulkanite>();
-					std::set<pxr::TfToken> uvMapVarname;
-					ImportMaterial( shader, uvMapVarname, *p.GetStage(), *mat );
-					/*
-					if (geo.skin.size())
-						mat.flags |= hg::MF_EnableSkinning;
-					*/
-
-					// check double side
-					bool isDoubleSided = false;
-					geoUSD.GetDoubleSidedAttr().Get( &isDoubleSided );
-					// if it's a geo subset check the parent 
-					if( p.GetTypeName() == "GeomSubset" )
-						pxr::UsdGeomMesh( p.GetParent() ).GetDoubleSidedAttr().Get( &isDoubleSided );
-
-					mat->doubleSided = isDoubleSided;
-
-					scene.materialsCache[hashIdentifierPrim] = mat;
-				}
-				else
-					spdlog::error( "!Unexpected shader from UsdShadeShader()" );
 			}
 		}
 		// import children
@@ -1074,19 +1147,22 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 	createIndexBuffer( allIndices, scene.allIndicesBuffer, allIndicesBufferMemory );
 	createBuffer( VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.offsetPrimsBuffer, sizeof( offsetPrim ) * offsetPrims.size(), offsetPrims.data() );
 
-	//root node with 90 axis rotation
-	objectVulkanite rootNode{};
-	rootNode.world = glm::rotate( rootNode.world, glm::radians( -90.0f ), glm::vec3( 1, 0, 0 ) );
-
 	// import nodes.
+	objectVulkanite root;
+	
+	// rotate the root if the transform up is Z
+	if( UsdGeomGetStageUpAxis( stage ) == pxr::UsdGeomTokens->z )
+		root.world = glm::mat4( 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, -1.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 1.f );
+
 	for( const auto& p : stage->GetPseudoRoot().GetChildren() ) {
 		auto type = p.GetTypeName();
 		if( type == "Material" || type == "Shader" ) // don't import node to scene for these types
 			continue;
-		auto node = ImportNode( p );
-		rootNode.children.push_back( std::move( node ) );
-	}
+		auto node = ImportNode( p, glm::mat4(1) );
 
-	nodesHierarchy.push_back( std::move( rootNode ) );
-	return std::move( nodesHierarchy );
+		root.children.push_back( std::move( node ) );
 	}
+	
+	nodesHierarchy.push_back( std::move( root ) );
+	return nodesHierarchy;
+}

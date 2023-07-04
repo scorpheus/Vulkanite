@@ -626,7 +626,7 @@ void updateUniformBuffer(uint32_t currentFrame, const objectVulkanite &obj, cons
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
 	ubo.proj[1][1] *= -1;
 
-	ubo.model = obj.world * parent_world;
+	ubo.model = parent_world * obj.world;
 	ubo.view = camWorld;
 	ubo.invView = glm::inverse(ubo.view);
 
@@ -642,7 +642,7 @@ void updateUniformBufferMotionVector(uint32_t currentFrame, objectVulkanite &obj
 	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
 	proj[1][1] *= -1;
 
-	ubo.modelViewProjectionMat = proj * camWorld * obj.world * parent_world;
+	ubo.modelViewProjectionMat = proj * camWorld * parent_world * obj.world;
 	ubo.prevModelViewProjectionMat = obj.PrevModelViewProjectionMat;
 	ubo.jitterMat = JitterMatrix;
 	obj.PrevModelViewProjectionMat = ubo.modelViewProjectionMat;

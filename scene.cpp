@@ -34,7 +34,7 @@ void loadScene() {
 	//	scene.roots = loadSceneUSD(MODEL_GLTF_PATH);
 
 //	std::string scenePath("models/simple_texture_cube.usda");
-	//std::string scenePath("models/BoxTextured.glb");
+//	std::string scenePath("models/pion_chess.usda");
 	std::string scenePath("models/abeautifulgame_draco.usdc");
 	if (fs::path(scenePath).extension() == ".gltf" || fs::path(scenePath).extension() == ".glb")
 		scene.roots = loadSceneGLTF(scenePath);
@@ -110,9 +110,9 @@ void initScene() {
 	std::function<void(objectVulkanite &, const glm::mat4 &)> makeTLASf;
 	makeTLASf = [&](objectVulkanite &obj, const glm::mat4 &parent_world) {
 		if (scene.primsMeshCache[obj.primMesh])
-			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, false);
+			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, parent_world * obj.world, false);
 		for (auto &objChild : obj.children)
-			makeTLASf(objChild, obj.world * parent_world);
+			makeTLASf(objChild, parent_world * obj.world);
 	};
 	for (auto &o : scene.roots)
 		makeTLASf(o, glm::mat4(1));
@@ -139,20 +139,26 @@ void updateScene(float deltaTime) {
 	std::function<void(objectVulkanite &, const glm::mat4 &)> updateTLASf;
 	updateTLASf = [&](objectVulkanite &obj, const glm::mat4 &parent_world) {
 		if (scene.primsMeshCache[obj.primMesh])
-			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, obj.world * parent_world, true);
+			vulkanite_raytrace::createTopLevelAccelerationStructureInstance(obj, parent_world * obj.world, true);
 		for (auto &objChild : obj.children)
-			updateTLASf(objChild, obj.world * parent_world);
+			updateTLASf(objChild, parent_world * obj.world);
 	};
+#endif
 
 	// update the 5th object around (moving test for the chess game)
-	if (5 < scene.roots.size()) {
-		glm::mat4 movingMat = glm::mat4(1.0f);
-		scene.roots[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, 0.014927f, sin(glm::radians(timer)) * 0.1f));
-
-		for (auto &o : scene.roots[5].children)
-			updateTLASf(o, scene.roots[5].world);
+	if (scene.roots.size()) {
+		if (5 < scene.roots[0].children.size()) {
+			glm::mat4 movingMat = glm::mat4(1.0f);
+			scene.roots[0].children[5].world = glm::translate(movingMat, glm::vec3(cos(glm::radians(timer)) * 0.1f, sin(glm::radians(timer)) * 0.1f, 0.014927f));
+		
+	#if !defined DRAW_RASTERIZE
+			for (auto &o : scene.roots[0].children[5].children)
+				updateTLASf(o, scene.roots[0].world * scene.roots[0].children[5].world);
+	#endif
+		}
 	}
-
+	
+#if !defined DRAW_RASTERIZE
 	vulkanite_raytrace::createTopLevelAccelerationStructure(true);
 #endif
 }
@@ -190,7 +196,7 @@ void drawModel(VkCommandBuffer commandBuffer, uint32_t currentFrame, objectVulka
 	}
 
 	for (auto &objChild : obj.children)
-		drawModel(commandBuffer, currentFrame, objChild, obj.world * parent_world, isRenderingAlphaPass);
+		drawModel(commandBuffer, currentFrame, objChild, parent_world * obj.world, isRenderingAlphaPass);
 }
 
 void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame) {

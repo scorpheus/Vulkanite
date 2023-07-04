@@ -57,6 +57,10 @@ conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tiny
 					
 foreach(TYPE Debug RelWithDebInfo Release)
 	conan_cmake_autodetect(settings BUILD_TYPE ${TYPE})
+	set(CONAN_RUNTIME MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:Debug>)
+	set(CONAN_SETTINGS ${settings} compiler.runtime=${CONAN_RUNTIME})
+	set(CONAN_SETTINGS ${settings} build_type=$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:RelWithDebInfo>$<$<CONFIG:Release>:Release>)
+	
 	conan_cmake_install(PATH_OR_REFERENCE .
 						BUILD missing
 						REMOTE conancenter
@@ -106,7 +110,7 @@ if(WIN32)
 	add_compile_options(/permissive- /std:c++latest)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Vulkanite)
 	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
-	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:DLL>")
 endif()
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! USD
@@ -122,31 +126,34 @@ else ()
         CACHE STRING "Extension of USD libraries")
 endif ()
 
-foreach(TYPE Release Debug)
+foreach(TYPE Release )#RelWithDebInfo Debug)
+
+	set(CONFIG_TYPE ${TYPE})
+	if(${TYPE} STREQUAL "RelWithDebInfo")
+		set(CONFIG_TYPE "Release")
+	endif()
+
 	# look for usd project
-	set(pxr_DIR "${USD_SDK_DIR}/USD_build_${TYPE}")
+	set(pxr_DIR "${USD_SDK_DIR}/USD_build_${CONFIG_TYPE}")
 
 #	find_package(Boost PATHS pxr_DIR) # headers only
 
 	target_link_libraries(Vulkanite PUBLIC  
-								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/tbb_debug${USD_LIB_SUFFIX}> 
-								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/tbb${USD_LIB_SUFFIX}> 
-								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/usd_usd_ms${USD_LIB_SUFFIX}>
-								$<$<CONFIG:${TYPE}>:${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX}>)
+								${pxr_DIR}/lib/tbb_debug${USD_LIB_SUFFIX}
+								${pxr_DIR}/lib/tbb${USD_LIB_SUFFIX}
+								${pxr_DIR}/lib/usd_ms${USD_LIB_SUFFIX}
+								${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX})
 
-	target_include_directories(Vulkanite PUBLIC	$<$<CONFIG:${TYPE}>:${pxr_DIR}/include> 
-													$<$<CONFIG:${TYPE}>:${pxr_DIR}/include/boost-1_78>)
-												#	$<$<CONFIG:${TYPE}>:${Boost_INCLUDE_DIRS}>)
+	target_include_directories(Vulkanite PUBLIC	${pxr_DIR}/include
+													${pxr_DIR}/include/boost-1_78)
+												#	$<$<CONFIG:${CONFIG_TYPE}>:${Boost_INCLUDE_DIRS}>)
 
 	install(DIRECTORY "${pxr_DIR}/lib/"
- 			CONFIGURATIONS ${TYPE}
  	 		DESTINATION Vulkanite COMPONENT Vulkanite
  			FILES_MATCHING PATTERN "*.dll")
 	install(DIRECTORY "${pxr_DIR}/lib/usd"
- 			CONFIGURATIONS ${TYPE}
  			DESTINATION Vulkanite COMPONENT Vulkanite)
 	install(DIRECTORY "${pxr_DIR}/bin/"
- 			CONFIGURATIONS ${TYPE}
  			DESTINATION Vulkanite COMPONENT Vulkanite
  			FILES_MATCHING PATTERN "*.dll")
 endforeach()
@@ -201,7 +208,7 @@ endif()
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc ${LIST_RESOURCES})
 
-set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:DLL>")
 target_link_libraries(Vulkanite PUBLIC gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
 
