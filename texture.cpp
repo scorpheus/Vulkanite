@@ -11,13 +11,17 @@ namespace fs = std::filesystem;
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <spdlog/spdlog.h>
 
-void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
+
+bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
 	// Check if image format supports linear blitting
 	VkFormatProperties formatProperties;
 	vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-		throw std::runtime_error("texture image format does not support linear blitting!");
+		//throw std::runtime_error("texture image format does not support linear blitting!");
+		spdlog::error("texture image format does not support linear blitting!");
+		return false;
 	}
 
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -99,7 +103,7 @@ void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int3
 	endSingleTimeCommands(commandBuffer);
 }
 
-void createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels, bool useFloat) {
+bool createTextureImage(const unsigned char *bytes, int size, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels, bool useFloat) {
 	int texWidth, texHeight, texChannels;
 	void *pixels;
 	if (useFloat)
@@ -108,7 +112,9 @@ void createTextureImage(const unsigned char *bytes, int size, VkImage &textureIm
 		pixels = stbi_load_from_memory(bytes, size, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
-		throw std::runtime_error("failed to load texture image!");
+		//throw std::runtime_error("failed to load texture image!");
+		spdlog::error("failed to load texture image!");
+		return false;
 	}
 	if (useFloat)
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
@@ -116,9 +122,10 @@ void createTextureImage(const unsigned char *bytes, int size, VkImage &textureIm
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(unsigned char), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
 
 	stbi_image_free(pixels);
+	return true;
 }
 
-void createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
+bool createTextureImage(const std::string &texturePath, VkImage &textureImage, VkDeviceMemory &textureImageMemory, uint32_t &mipLevels) {
 	int texWidth, texHeight, texChannels;
 	void *pixels;
 	if (fs::path(texturePath).extension() == ".hdr")
@@ -127,7 +134,9 @@ void createTextureImage(const std::string &texturePath, VkImage &textureImage, V
 		pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
-		throw std::runtime_error("failed to load texture image!");
+	//	throw std::runtime_error("failed to load texture image!");
+		spdlog::error("failed to load texture image!");
+		return false;
 	}
 	if (fs::path(texturePath).extension() == ".hdr")
 		createTextureImage(pixels, texWidth, texHeight, texWidth * texHeight * 4 * sizeof(float), textureImage, textureImageMemory, mipLevels, VK_FORMAT_R32G32B32A32_SFLOAT);
@@ -178,7 +187,7 @@ VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mi
 	return createImageView(textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 }
 
-void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
+bool createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
@@ -206,8 +215,11 @@ void createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels) {
 	samplerInfo.mipLodBias = 0.0f; // Optional
 
 	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create texture sampler!");
+	//	throw std::runtime_error("failed to create texture sampler!");
+		spdlog::error("failed to load texture image!");
+		return false;
 	}
+	return true;
 }
 
 void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat format, VkImageAspectFlags aspect, VkExtent3D extent) {
