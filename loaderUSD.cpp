@@ -1,5 +1,6 @@
-// Thomas Simonnet
-// USD format importer.
+/*
+ *  Copyright Vulkanite - 2022  - Thomas Simonnet
+ */
 
 #define NOMINMAX
 
@@ -69,7 +70,7 @@ void ReplaceAll( std::string& str, const std::string& from, const std::string& t
 //
 static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::TfToken>& uvMapVarname, const pxr::UsdStage& stage, matVulkanite& mat ) {
 
-	spdlog::debug( fmt::format( "	Exporting material '{}'", shaderUSD.GetPath().GetString() ) );
+	spdlog::debug( fmt::format( "	Importing material '{}'", shaderUSD.GetPath().GetString() ) );
 
 	//
 	std::string dst_path;
@@ -114,7 +115,6 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 					mat.emissiveFactor.y = emissiveUSD.data()[1];
 					mat.emissiveFactor.z = emissiveUSD.data()[2];
 				}
-
 			}
 			else {
 				pxr::UsdShadeShader shaderTexture( attr.GetPrim() );
@@ -167,27 +167,27 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 								mat.emissiveTex = idTex;
 
 						}
-						//else if( baseNameTextureInput == "st" && inputTexture.GetConnectedSources().size() > 0 ) {
-						//	// Retrieve the source that is connected to the output.
-						//	auto sourceUV = inputTexture.GetConnectedSources()[0].source;
+						else if( baseNameTextureInput == "st" && inputTexture.GetConnectedSources().size() > 0 ) {
+							// Retrieve the source that is connected to the output.
+							auto sourceUV = inputTexture.GetConnectedSources()[0].source;
 
-						//	// Retrieve the shader where the output is located.
-						//	pxr::UsdShadeShader shaderUV( sourceUV.GetPrim() );
+							// Retrieve the shader where the output is located.
+							pxr::UsdShadeShader shaderUV( sourceUV.GetPrim() );
 
-						//	// Retrieve the UV input.
-						//	auto inputUVName = shaderUV.GetInput( pxr::TfToken( "varname" ) );
+							// Retrieve the UV input.
+							auto inputUVName = shaderUV.GetInput( pxr::TfToken( "varname" ) );
 
-						//	// If there's another connected source, update the inputUVName.
-						//	if( inputUVName.GetConnectedSources().size() > 0 ) {
-						//		auto UVNameSource = inputUVName.GetConnectedSources()[0].source;
-						//		inputUVName = UVNameSource.GetInput( pxr::TfToken( "stPrimvarName" ) );
-						//	}
+							// If there's another connected source, update the inputUVName.
+							if( inputUVName.GetConnectedSources().size() > 0 ) {
+								auto UVNameSource = inputUVName.GetConnectedSources()[0].source;
+								inputUVName = UVNameSource.GetInput( pxr::TfToken( "stPrimvarName" ) );
+							}
 
-						//	// Retrieve the token reference within the geometry.
-						//	pxr::TfToken UVName;
-						//	inputUVName.GetAttr().Get( &UVName );
-						//	uvMapVarname.insert( UVName );
-						//}
+							// Retrieve the token reference within the geometry.
+							pxr::TfToken UVName;
+							inputUVName.GetAttr().Get( &UVName );
+							uvMapVarname.insert( UVName );
+						}
 					}
 				}
 			}
@@ -228,11 +228,7 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 	geoMesh.GetFaceVertexIndicesAttr().Get( &faceVertexIndices );
 
 	// uv texcoord from blender (TODO test from other sources)
-	// TODO When the buffers will be separated, we can specify differents uv per geometry, for now use hardcoded one
-	std::set<pxr::TfToken> uvMapVarnameTemp;
-	pxr::TfToken uvMap("UVMap");
-	uvMapVarnameTemp.insert(uvMap);
-	for( const auto& UVToken : /*uvMapVarname*/uvMapVarnameTemp ) {
+	for( const auto& UVToken : uvMapVarname ) {
 		auto UVPrim = pxr::UsdGeomPrimvar( geoMesh.GetPrim().GetAttribute( pxr::TfToken( "primvars:" + UVToken.GetString() ) ) );
 		if( UVPrim.HasValue() ) {
 			uvs.resize( uvs.size() + 1 );
@@ -272,12 +268,16 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 			memcpy( &v.pos.x, points[faceVertexIndices[index]].data(), sizeof( float ) * 3 );
 
 			v.norm = glm::vec3( 0, 1, 0 );
-			if( index < normals.size() )
+			if (normals.size() == points.size())
+				memcpy( &v.norm.x, normals[faceVertexIndices[index]].data(), sizeof( float ) * 3 );
+			else
 				memcpy( &v.norm.x, normals[index].data(), sizeof( float ) * 3 );
 
-			if( index < uvs[0].size() )
-			{
-				memcpy( &v.texCoord0.x, uvs[0][index].data(), sizeof( float ) * 2 );
+			if( uvs.size() ) {
+				if( uvs[0].size() == points.size() )
+					memcpy( &v.texCoord0.x, uvs[0][faceVertexIndices[index]].data(), sizeof( float ) * 2 );
+				else
+					memcpy( &v.texCoord0.x, uvs[0][index].data(), sizeof( float ) * 2 );
 				v.texCoord0.y = 1.f - v.texCoord0.y;
 			}
 			else
@@ -353,7 +353,7 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 	//	face_offset += f_count;
 	//}
 
-	//// If a subset exists, modify the geometry. TODO: This current method is not very efficient, consider optimization.
+	// If a subset exists, modify the geometry. TODO: This current method is not very efficient, consider optimization.
 	//if (faceSubsetIndices.size() > 0) {
 	//	std::vector<hg::Geometry::Polygon> pol;
 	//	std::vector<uint32_t> binding;
@@ -477,10 +477,11 @@ static void ImportObject( const pxr::UsdPrim& p, objectVulkanite* node ) {
 
 	objectVulkanite subMesh{};
 
-	size_t hashIdentifierPrim = 0;
+	size_t hashIdentifierPrim = 0;	
+	// get only the last hash identifier
 	for( auto o : p.GetPrimIndex().GetNodeRange() ) {
 		std::hash<std::string> hasher;
-		hashIdentifierPrim += hasher(/*pxr::TfStringify(o.GetLayerStack()) +*/ o.GetPath().GetString() );
+		hashIdentifierPrim = hasher(/*pxr::TfStringify(o.GetLayerStack()) +*/ o.GetPath().GetString() );
 	}
 
 	if( hashIdentifierPrim != 0 ) {
@@ -518,8 +519,12 @@ static void ImportObject( const pxr::UsdPrim& p, objectVulkanite* node ) {
 				foundMat = true;
 
 				std::hash<std::string> hasher;
-				subMesh.matCacheID = hasher( shader.GetPath().GetString() );
-				subMesh.mat = scene.materialsCache[hasher( shader.GetPath().GetString() )]->id;
+				uint32_t hash = hasher( shader.GetPath().GetString() );
+				if( scene.materialsCache.find( hash ) != scene.materialsCache.end() &&
+					scene.materialsCache[hash] ) {
+					subMesh.matCacheID = hash;
+					subMesh.mat = scene.materialsCache[subMesh.matCacheID]->id;
+				}
 			}
 		}
 
@@ -688,7 +693,6 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &paren
 	auto type = p.GetTypeName();
 
 	spdlog::info( fmt::format( "type: {}, {}", type.GetString(), p.GetPath().GetString().c_str() ) );
-	//pxr::ArResolverContextBinder resolverContextBinder( p.GetStage()->GetPathResolverContext() );
 
 	objectVulkanite node{};
 	node.name = p.GetName();
@@ -782,37 +786,33 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &paren
 	//	node.SetObject(object);
 
 	//}
-	// 
-	// TODO load instances
-/* // Check the children.
+
+	// load instances
 	if (p.IsInstance()){
 		auto proto = p.GetPrototype();
 		auto protoName = proto.GetName().GetString();
 		std::string out_path_proto;
-		if (protoToInstance.find(protoName) != protoToInstance.end()) {
-			out_path_proto = protoToInstance[protoName];
-		} else {
-			hg::Scene sceneProto;
-			auto nodeProto = sceneProto.CreateNode(protoName);
-			nodeProto.SetTransform(sceneProto.CreateTransform());
+		//if (protoToInstance.find(protoName) != protoToInstance.end()) {
+		//	out_path_proto = protoToInstance[protoName];
+		//} else {
+		//	hg::Scene sceneProto;
+		//	auto nodeProto = sceneProto.CreateNode(protoName);
+		//	nodeProto.SetTransform(sceneProto.CreateTransform());
 
-			for (auto c : p.GetPrototype().GetChildren())
-				ImportNode(c, &nodeProtoProto);
+		//	for (auto c : p.GetPrototype().GetChildren())
+		//		ImportNode(c, &nodeProtoProto);
 
-			nodeProto.GetTransform().SetParent(node.ref);
+		//	nodeProto.GetTransform().SetParent(node.ref);
 
-			if (GetOutputPath(out_path_proto, config.base_output_path, protoName, {}, "scn", config.import_policy_scene))
-				SaveSceneJsonToFile(out_path_proto.c_str()Proto, resources);
+		//	if (GetOutputPath(out_path_proto, config.base_output_path, protoName, {}, "scn", config.import_policy_scene))
+		//		SaveSceneJsonToFile(out_path_proto.c_str()Proto, resources);
 
-			out_path_proto = MakeRelativeResourceName(out_path_proto, config.prj_path, config.prefix);
-			protoToInstance[protoName] = out_path_proto;
-		}
+		//	out_path_proto = MakeRelativeResourceName(out_path_proto, config.prj_path, config.prefix);
+		//	protoToInstance[protoName] = out_path_proto;
+		//}
 
-		node.SetInstance(scene.CreateInstance(out_path_proto));
+		//node.SetInstance(scene.CreateInstance(out_path_proto));
 	}
-	else
-		for (auto c : p.GetChildren())
-			ImportNode(c);*/
 
 			// import children
 	for( auto c : p.GetChildren() ) {
@@ -826,66 +826,6 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &paren
 	return node;
 }
 
-//void ImportTexture(pxr::UsdStageRefPtr stage) {
-//    std::hash<std::string> hasher;
-//    pxr::ArResolver& resolver = pxr::ArGetResolver();
-//    
-//    for (const auto& prim : stage->TraverseAll()) {
-//        auto attr = prim.GetAttribute(pxr::UsdShadeTokens->infoId);
-//        if (!attr) continue;
-//        
-//        pxr::TfToken infoId;
-//        attr.Get(&infoId);
-//        if (infoId.GetString() != "UsdUVTexture") continue;
-//
-//        pxr::UsdShadeShader shaderTexture(prim);
-//        for (const auto& input : shaderTexture.GetInputs()) {
-//            if (input.GetBaseName().GetString() != "file") continue;
-//
-//            pxr::SdfAssetPath assetPath("", "");
-//            input.GetAttr().Get(&assetPath, 0);
-//
-//            if (assetPath.GetResolvedPath().empty()) {
-//                std::string assetPathToCheck = assetPath.GetAssetPath();
-//                ReplaceAll(assetPathToCheck, "<UDIM>", "1001");
-//                auto resolvedPath = resolver.Resolve(assetPathToCheck);
-//                assetPath = pxr::SdfAssetPath(assetPath.GetAssetPath(), resolvedPath);
-//            }
-//
-//            if (assetPath.GetResolvedPath().empty()) {
-//                spdlog::error(fmt::format("Can't find asset with path {}", assetPath.GetAssetPath()));
-//                continue;
-//            }
-//
-//            auto textureAsset = resolver.OpenAsset(pxr::ArResolvedPath(assetPath.GetResolvedPath()));
-//            int hashIdentifierPrim = hasher(std::string(textureAsset->GetBuffer().get(), textureAsset->GetSize()));
-//            
-//            if (scene.textureCache.find(hashIdentifierPrim) != scene.textureCache.end()) {
-//                scene.textureCache[hasher(assetPath.GetAssetPath())] = scene.textureCache[hashIdentifierPrim];
-//                continue;
-//            }
-//
-//            std::shared_ptr<textureVulkanite> tex(new textureVulkanite);
-//         //   tex->name = assetPath.GetResolvedPath();
-//            tex->textureImage = nullptr;
-//
-//            createTextureImage(reinterpret_cast<const unsigned char*>(textureAsset->GetBuffer().get()), 
-//                               textureAsset->GetSize(), 
-//                               tex->textureImage, 
-//                               tex->textureImageMemory, 
-//                               tex->mipLevels);
-//
-//            if (!tex->textureImage) continue;
-//
-//            tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-//            createTextureSampler(tex->textureSampler, tex->mipLevels);
-//
-//            scene.textureCache[hashIdentifierPrim] = tex;
-//            scene.textureCache[hasher(assetPath.GetAssetPath())] = tex;
-//        }
-//    }
-//}
-//
 void ImportTexture( pxr::UsdStageRefPtr stage ) {
 
 	for( const auto& p : stage->TraverseAll() ) {
@@ -990,6 +930,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 	}
 
 	// load all materials
+	std::map<uint32_t, std::set<pxr::TfToken>> uvsPerMesh, uvsPerShade;
 	scene.materialsCache[0] = std::make_shared<matVulkanite>();
 
 	std::function<void( const pxr::UsdPrim& )> fLoadAllMaterials;
@@ -997,44 +938,56 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 	fLoadAllMaterials = [&]( const pxr::UsdPrim p ) {
 		auto type = p.GetTypeName();
 		if( type == "Mesh" || type == "GeomSubset" ) {
-
+		
 			pxr::UsdGeomMesh geoUSD( p );
 
 			std::string path = p.GetPath().GetString();
 
-			pxr::UsdShadeMaterialBindingAPI materialBinding( p );
-			if( materialBinding ) {
-				auto binding = materialBinding.GetDirectBinding();
-				if( pxr::UsdShadeMaterial shadeMaterial = binding.GetMaterial() ) {
-					pxr::UsdShadeShader shader = shadeMaterial.ComputeSurfaceSource();
+			size_t hashIdentifierPrim = 0;
+			// get only the last hash identifier
+			for( auto o : p.GetPrimIndex().GetNodeRange() ) {
+				std::hash<std::string> hasher;
+				hashIdentifierPrim = hasher(/*pxr::TfStringify(o.GetLayerStack()) + */o.GetPath().GetString() );
+			}
 
-					// if there is no shader with defaut render context, find the ONE
-					if( !shader ) {
-						// find the output surface with the UsdPreviewSurface (we handle this one for now)
-						auto outputs = shadeMaterial.GetSurfaceOutputs();
-						for( const auto& output : outputs ) {
-							if( output.HasConnectedSource() ) {
-								// get the source connected to the output
-								auto sourceOutput = output.GetConnectedSources()[0].source;
-								auto sourceShaderName = sourceOutput.GetPrim().GetName().GetString();
-								if( sourceShaderName == "UsdPreviewSurface" )
-									shader = pxr::UsdShadeShader( sourceOutput.GetPrim() );
-							}
+			pxr::UsdShadeMaterialBindingAPI materialBinding( p );
+			auto binding = materialBinding.GetDirectBinding();
+			if( pxr::UsdShadeMaterial shadeMaterial = binding.GetMaterial() ) {
+				pxr::UsdShadeShader shader = shadeMaterial.ComputeSurfaceSource();
+
+				// if there is no shader with defaut render context, find the ONE
+				if( !shader ) {
+					// find the output surface with the UsdPreviewSurface (we handle this one for now)
+					auto outputs = shadeMaterial.GetSurfaceOutputs();
+					for( const auto& output : outputs ) {
+						if( output.HasConnectedSource() ) {
+							// get the source connected to the output
+							auto sourceOutput = output.GetConnectedSources()[0].source;
+							auto sourceShaderName = sourceOutput.GetPrim().GetName().GetString();
+							if( sourceShaderName == "UsdPreviewSurface" )
+								shader = pxr::UsdShadeShader( sourceOutput.GetPrim() );
 						}
 					}
+				}
 
-					if( shader ) {
-						std::hash<std::string> hasher;
-						size_t hashIdentifierPrim = hasher( shader.GetPath().GetString() );
+				if( shader ) {
+					std::hash<std::string> hasher;
+					size_t hashIdentifierMaterial = hasher( shader.GetPath().GetString() );
 
-						// if prims already loaded
-						if( hashIdentifierPrim == 0 || scene.materialsCache.contains( hashIdentifierPrim ) )
-							return;
-
+					// if prims already loaded
+					if( hashIdentifierMaterial == 0 || scene.materialsCache.contains( hashIdentifierMaterial ) ) {
+						uvsPerMesh[hashIdentifierPrim] = uvsPerShade[hashIdentifierMaterial];
+					}
+					else {
 						// get the material
 						auto mat = std::make_shared<matVulkanite>();
 						std::set<pxr::TfToken> uvMapVarname;
 						ImportMaterial( shader, uvMapVarname, *p.GetStage(), *mat );
+
+						// save uvs map varnam per prime
+						uvsPerMesh[hashIdentifierPrim] = uvMapVarname;
+						uvsPerShade[hashIdentifierMaterial] = uvMapVarname;
+
 						/*
 						if (geo.skin.size())
 							mat.flags |= hg::MF_EnableSkinning;
@@ -1049,11 +1002,11 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 
 						mat->doubleSided = isDoubleSided;
 
-						scene.materialsCache[hashIdentifierPrim] = mat;
+						scene.materialsCache[hashIdentifierMaterial] = mat;
 					}
-					else
-						spdlog::error( "!Unexpected shader from UsdShadeShader()" );
 				}
+				else
+					spdlog::error( "!Unexpected shader from UsdShadeShader()" );
 			}
 		}
 		// import children
@@ -1095,25 +1048,28 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 		if( type == "Mesh" || type == "GeomSubset" ) {
 
 			pxr::UsdGeomMesh geoUSD( p );
-
+			
 			size_t hashIdentifierPrim = 0;
+			// get only the last hash identifier
 			for( auto o : p.GetPrimIndex().GetNodeRange() ) {
 				std::hash<std::string> hasher;
-				hashIdentifierPrim += hasher(/*pxr::TfStringify(o.GetLayerStack()) + */o.GetPath().GetString() );
+				hashIdentifierPrim = hasher(/*pxr::TfStringify(o.GetLayerStack()) + */o.GetPath().GetString() );
 			}
 
-			// if prims already loaded
-			if( hashIdentifierPrim == 0 || scene.primsMeshCache.contains( hashIdentifierPrim ) )
-				return;
+			// if prims not already loaded
+			if( hashIdentifierPrim != 0 && !scene.primsMeshCache.contains( hashIdentifierPrim ) ) {
+				auto primMesh = std::make_shared<primMeshVulkanite>();
 
-			auto primMesh = std::make_shared<primMeshVulkanite>();
-			std::set<pxr::TfToken> uvMapVarname;
+				pxr::UsdGeomSubset subsetC( p );
 
-			ImportGeometry( geoUSD, nullptr, *primMesh, uvMapVarname );
-			createVertexBuffer( primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory );
-			createIndexBuffer( primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory );
+				ImportGeometry( geoUSD, type == "GeomSubset" ? &subsetC : nullptr, *primMesh, uvsPerMesh[hashIdentifierPrim] );
+				if( primMesh->vertices.size() ) {
+					createVertexBuffer( primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory );
+					createIndexBuffer( primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory );
 
-			scene.primsMeshCache[hashIdentifierPrim] = primMesh;
+					scene.primsMeshCache[hashIdentifierPrim] = primMesh;
+				}
+			}
 		}
 		// import children
 		for( auto c : p.GetChildren() ) {

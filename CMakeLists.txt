@@ -51,7 +51,7 @@ endif(MSVC)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 fmt/9.1.0 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325 draco/1.5.5 ktx/4.0.0 libbasisu/1.15.0
+conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 fmt/9.1.0 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325 draco/1.5.5 ktx/4.0.0 libbasisu/1.15.0 imgui/1.89.4 implot/0.14
 					GENERATORS cmake_find_package_multi
                     OPTIONS spdlog:wchar_support=True)
 					
@@ -78,9 +78,11 @@ find_package(mikktspace REQUIRED)
 find_package(draco REQUIRED)
 find_package(ktx REQUIRED)
 find_package(libbasisu REQUIRED)
+find_package(imgui REQUIRED)
+find_package(implot REQUIRED)
 
 
-link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
+link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu imgui::imgui implot::implot)
 
 # shaders
 include(cmake/utilities.cmake)
@@ -94,6 +96,7 @@ compile_glsl_directory(
 )
 
 file(GLOB SOURCE_FILES "*.h" "*.cpp")
+LIST(APPEND SOURCE_FILES extern/imgui/imgui_impl_glfw.cpp extern/imgui/imgui_impl_vulkan.cpp)
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
@@ -145,7 +148,7 @@ foreach(TYPE Release )#RelWithDebInfo Debug)
 								${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX})
 
 	target_include_directories(Vulkanite PUBLIC	${pxr_DIR}/include
-													${pxr_DIR}/include/boost-1_78)
+												${pxr_DIR}/include/boost-1_78)
 												#	$<$<CONFIG:${CONFIG_TYPE}>:${Boost_INCLUDE_DIRS}>)
 
 	install(DIRECTORY "${pxr_DIR}/lib/"
@@ -200,7 +203,7 @@ set(LIST_RESOURCES
 		spv/shader.vert.spv
 		spv/shadow.rmiss.spv
 		spv/shaderMotionVector.frag.spv
-		spv/shaderMotionVector.vert.spv	
+		spv/shaderMotionVector.vert.spv
 )
 if(INCLUDE_MODEL)	
 	list(APPEND LIST_RESOURCES ${MODEL_GLTF_PATH})
@@ -211,11 +214,16 @@ cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc ${LIST_RESOURCES})
 set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:DLL>")
 target_link_libraries(Vulkanite PUBLIC gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
+target_compile_options(Vulkanite PRIVATE $<$<CONFIG:Release>:/Zi>)
+set_target_properties(Vulkanite PROPERTIES LINK_FLAGS_RELEASE "/DEBUG")
 
 # dlss
 target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/x86_64)
 target_link_libraries(Vulkanite PUBLIC debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
+
+# imgui backend
+target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui)
 
 # modify where cmake install directory
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix" FORCE)

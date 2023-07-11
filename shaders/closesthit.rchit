@@ -506,8 +506,9 @@ void main()
 	//albedo_color.xyz = albedo_color.xyz * mat.baseColorFactor.xyz;
 	albedo_color.xyz = sRGB2linear(albedo_color.xyz) * mat.baseColorFactor.xyz;
 	albedo_color.w = albedo_color.w * mat.baseColorFactor.w;
+
 	// alpha mask
-	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff){	 
+	if(mat.alphaMask == 2 && albedo_color.a < mat.alphaMaskCutoff){
 		rayPayload.currentRecursion += 1;
 		if(rayPayload.currentRecursion < 10)		
 			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, world_position, 0.001, gl_WorldRayDirectionEXT, 10000.0, 0);
@@ -524,6 +525,10 @@ void main()
 	vec3 emissive = texture(texturesMap[mat.emissiveTex], mat.emissiveTextureSet == 0 ? fragTexCoord0 : fragTexCoord1).xyz * mat.emissiveFactor;
 	float transmission = texture(texturesMap[mat.transmissionTex], mat.transmissionTextureSet== 0 ? fragTexCoord0 : fragTexCoord1).x * mat.transmissionFactor;
 
+	// if there is alpha, replace the transmission
+	if(albedo_color.w < 1.0)
+		transmission =  1.0 - albedo_color.w;
+		
 	// normal
 	vec3 N = normalize(world_normal);
 	vec3 T = normalize(world_tangent.xyz);
@@ -609,11 +614,10 @@ void main()
 	 
 	diffuse_color *= max(light_intensity_with_shadow / shadowrayCount, 0.2);
 
-
 	// remove fireflies
-	specular_pbr = clamp(specular_pbr, vec3(0.0), vec3(1.0)); 
+	specular_pbr = clamp(specular_pbr, vec3(0.0), vec3(1.0));
 
-	// refraction
+	// set transmission
 	if(transmission > 0.0)
 	{
 		rayPayload.currentRecursion += 1;

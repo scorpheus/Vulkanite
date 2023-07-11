@@ -7,6 +7,8 @@
 
 //#define DRAW_RASTERIZE
 
+struct ImDrawData;
+
 struct StorageImage;
 
 struct UniformBufferObject {
@@ -48,7 +50,7 @@ struct SceneVulkanite {
 	std::vector<StorageImage> storageImagesMotionVector, storageImagesDepth;
 	std::vector<StorageImage> storageImagesDLSS;
 		
-	std::vector<VkFramebuffer> rasterizerFramebuffers;
+	std::vector<VkFramebuffer> rasterizerFramebuffers, imguiFramebuffers;
 	VkRenderPass renderPass;
 
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -75,6 +77,6 @@ void loadScene();
 void initScene();
 void updateScene(float deltaTime);
 void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame);
-void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, ImDrawData* draw_data);
 void destroyScene();
 void deleteModel();

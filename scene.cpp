@@ -4,6 +4,9 @@
 #include <functional>
 #include <array>
 
+#include <imgui.h>
+#include "imgui_impl_vulkan.h"
+
 #include "dlss.h"
 #include "rasterizer.h"
 #include "raytrace.h"
@@ -36,6 +39,13 @@ void loadScene() {
 //	std::string scenePath("models/simple_texture_cube.usda");
 //	std::string scenePath("models/pion_chess.usda");
 	std::string scenePath("models/abeautifulgame_draco.usdc");
+	//std::string scenePath("models/2_tower.usda");
+	
+//	std::string scenePath("models/Ship_in_a_bottle.usdz");
+//	std::string scenePath("models/transprent_cube.usda");
+	
+//	std::string scenePath("F:\\Movida\\works\\Harfang\\factory\\TechArt.usda");
+	
 	if (fs::path(scenePath).extension() == ".gltf" || fs::path(scenePath).extension() == ".glb")
 		scene.roots = loadSceneGLTF(scenePath);
 	else
@@ -92,6 +102,7 @@ void initScene() {
 #if !defined DRAW_RASTERIZE
 	// setup raytrace
 	createStorageImage(scene.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale);
+	createFramebuffers(scene.renderPass, scene.imguiFramebuffers, scene.storageImagesRaytrace, scene.storageImagesDepth);
 
 	vulkanite_raytrace::InitRaytrace();
 
@@ -208,7 +219,7 @@ void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 		drawModel(commandBuffer, currentFrame, obj, glm::mat4(1), true);
 }
 
-void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
+void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame, ImDrawData* draw_data) {
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // Optional
@@ -250,9 +261,13 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 
 	drawScene(commandBuffer, currentFrame);
 
-	vkCmdEndRenderPass(commandBuffer);
-
+	// draw raytrace
 #if !defined DRAW_RASTERIZE
+	vkCmdEndRenderPass(commandBuffer); // end rasterize command buffer
+
+	renderPassInfo.framebuffer = scene.imguiFramebuffers[currentFrame];
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
+
 	// raytrace
 	vulkanite_raytrace::buildCommandBuffers(commandBuffer, currentFrame);
 
@@ -260,6 +275,12 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 		// dlss
 		RenderDLSS(commandBuffer, currentFrame, 1.0);
 #endif
+
+	// Imgui
+	// Record dear imgui primitives into command buffer
+	ImGui_ImplVulkan_RenderDrawData( draw_data, commandBuffer );
+
+	vkCmdEndRenderPass(commandBuffer);
 
 
 	// Copy final output to swap chain image
@@ -276,7 +297,6 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 		setImageLayout(commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
 	else
 		setImageLayout(commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange);
-
 #endif
 
 	VkImageCopy copyRegion{};
@@ -309,7 +329,6 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t currentFrame) {
 	else
 		setImageLayout(commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange);
 #endif
-
 
 	// end command buffer
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
