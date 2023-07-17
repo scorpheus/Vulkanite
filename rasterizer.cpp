@@ -23,15 +23,15 @@
 #include <cmrc/cmrc.hpp>
 
 #include "scene.h"
-CMRC_DECLARE(gltf_rc);
+CMRC_DECLARE( gltf_rc );
 
 #include "camera.h"
 
-static std::vector<char> readFile(const std::string &filename) {
+static std::vector<char> readFile( const std::string& filename ) {
 	auto cmrcFS = cmrc::gltf_rc::get_filesystem();
-	auto fileRC = cmrcFS.open(filename);
+	auto fileRC = cmrcFS.open( filename );
 	std::vector<char> buffer;
-	buffer.insert(buffer.begin(), fileRC.begin(), fileRC.end());
+	buffer.insert( buffer.begin(), fileRC.begin(), fileRC.end() );
 	return buffer;
 
 	//std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -48,73 +48,73 @@ static std::vector<char> readFile(const std::string &filename) {
 	//return buffer;
 }
 
-void createVertexBuffer(const std::vector<Vertex> &vertices, VkBuffer &vertexBuffer, VkDeviceMemory &vertexBufferMemory) {
-	const VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+void createVertexBuffer( const std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory ) {
+	const VkDeviceSize bufferSize = sizeof( vertices[0] ) * vertices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-	             stagingBufferMemory);
+	createBuffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+		stagingBufferMemory );
 
 
 	// fill the vertex buffer
-	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(device, stagingBufferMemory);
+	void* data;
+	vkMapMemory( device, stagingBufferMemory, 0, bufferSize, 0, &data );
+	memcpy( data, vertices.data(), ( size_t )bufferSize );
+	vkUnmapMemory( device, stagingBufferMemory );
 
-	createBuffer(bufferSize,
-	             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-	             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	             vertexBuffer, vertexBufferMemory);
+	createBuffer( bufferSize,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		vertexBuffer, vertexBufferMemory );
 
-	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+	copyBuffer( stagingBuffer, vertexBuffer, bufferSize );
 
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer( device, stagingBuffer, nullptr );
+	vkFreeMemory( device, stagingBufferMemory, nullptr );
 }
 
-void createIndexBuffer(const std::vector<uint32_t> &indices, VkBuffer &indexBuffer, VkDeviceMemory &indexBufferMemory) {
-	const VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+void createIndexBuffer( const std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory ) {
+	const VkDeviceSize bufferSize = sizeof( indices[0] ) * indices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-	             stagingBufferMemory);
+	createBuffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+		stagingBufferMemory );
 
-	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, indices.data(), (size_t)bufferSize);
-	vkUnmapMemory(device, stagingBufferMemory);
+	void* data;
+	vkMapMemory( device, stagingBufferMemory, 0, bufferSize, 0, &data );
+	memcpy( data, indices.data(), ( size_t )bufferSize );
+	vkUnmapMemory( device, stagingBufferMemory );
 
-	createBuffer(bufferSize,
-	             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-	             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-	             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+	createBuffer( bufferSize,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory );
 
-	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+	copyBuffer( stagingBuffer, indexBuffer, bufferSize );
 
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer( device, stagingBuffer, nullptr );
+	vkFreeMemory( device, stagingBufferMemory, nullptr );
 }
 
-VkShaderModule createShaderModule(const std::vector<char> &code) {
+VkShaderModule createShaderModule( const std::vector<char>& code ) {
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+	createInfo.pCode = reinterpret_cast< const uint32_t* >( code.data() );
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create shader module!");
+	if( vkCreateShaderModule( device, &createInfo, nullptr, &shaderModule ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create shader module!" );
 	}
 
 	return shaderModule;
 }
 
-void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
+void createDescriptorSetLayout( VkDescriptorSetLayout& descriptorSetLayout ) {
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -157,58 +157,58 @@ void createDescriptorSetLayout(VkDescriptorSetLayout &descriptorSetLayout) {
 	};
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.bindingCount = static_cast< uint32_t >( bindings.size() );
 	layoutInfo.pBindings = bindings.data();
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
+	if( vkCreateDescriptorSetLayout( device, &layoutInfo, nullptr, &descriptorSetLayout ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create descriptor set layout!" );
 	}
 }
 
-void createDescriptorPool(VkDescriptorPool &descriptorPool) {
+void createDescriptorPool( VkDescriptorPool& descriptorPool ) {
 	std::array<VkDescriptorPoolSize, 5> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[0].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[1].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[2].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[3].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[3].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSizes[4].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[4].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.poolSizeCount = static_cast< uint32_t >( poolSizes.size() );
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolInfo.maxSets = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor pool!");
+	if( vkCreateDescriptorPool( device, &poolInfo, nullptr, &descriptorPool ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create descriptor pool!" );
 	}
 }
 
-void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
-                          const std::vector<VkBuffer> &uniformBuffers,
-                          const VkDeviceSize &uniformBufferSize,
-                          const VkDescriptorSetLayout &descriptorSetLayout,
-                          const VkDescriptorPool &descriptorPool,
-                          const std::vector<VkBuffer> &uniformParamsBuffers,
-                          const VkDeviceSize &uniformParamsBufferSize) {
-	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+void createDescriptorSets( std::vector<VkDescriptorSet>& descriptorSets,
+	const std::vector<VkBuffer>& uniformBuffers,
+	const VkDeviceSize& uniformBufferSize,
+	const VkDescriptorSetLayout& descriptorSetLayout,
+	const VkDescriptorPool& descriptorPool,
+	const std::vector<VkBuffer>& uniformParamsBuffers,
+	const VkDeviceSize& uniformParamsBufferSize ) {
+	std::vector<VkDescriptorSetLayout> layouts( MAX_FRAMES_IN_FLIGHT, descriptorSetLayout );
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = descriptorPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	allocInfo.descriptorSetCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	allocInfo.pSetLayouts = layouts.data();
 
-	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate descriptor sets!");
+	descriptorSets.resize( MAX_FRAMES_IN_FLIGHT );
+	if( vkAllocateDescriptorSets( device, &allocInfo, descriptorSets.data() ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to allocate descriptor sets!" );
 	}
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ ) {
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = uniformBuffers[i];
 		bufferInfo.offset = 0;
@@ -225,16 +225,16 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		imageEnvMapInfo.sampler = scene.envMap.textureSampler;
 
 		std::vector<VkDescriptorImageInfo> imageAllTexturesInfo;
-		imageAllTexturesInfo.reserve(scene.textureCacheSequential.size());
-		for (const auto &t : scene.textureCacheSequential) {
+		imageAllTexturesInfo.reserve( scene.textureCacheSequential.size() );
+		for( const auto& t : scene.textureCacheSequential ) {
 			VkDescriptorImageInfo imageTextureMapInfo;
 			imageTextureMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			imageTextureMapInfo.imageView = t->textureImageView;
 			imageTextureMapInfo.sampler = t->textureSampler;
-			imageAllTexturesInfo.push_back(imageTextureMapInfo);
+			imageAllTexturesInfo.push_back( imageTextureMapInfo );
 		}
 
-		VkDescriptorBufferInfo materialsInfo{scene.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo materialsInfo{ scene.materialsCacheBuffer.buffer, 0, VK_WHOLE_SIZE };
 
 		std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
@@ -278,11 +278,11 @@ void createDescriptorSets(std::vector<VkDescriptorSet> &descriptorSets,
 		descriptorWrites[4].descriptorCount = 1;
 		descriptorWrites[4].pBufferInfo = &materialsInfo;
 
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets( device, static_cast< uint32_t >( descriptorWrites.size() ), descriptorWrites.data(), 0, nullptr );
 	}
 }
 
-void createDescriptorSetLayoutMotionVector(VkDescriptorSetLayout &descriptorSetLayout) {
+void createDescriptorSetLayoutMotionVector( VkDescriptorSetLayout& descriptorSetLayout ) {
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -291,51 +291,51 @@ void createDescriptorSetLayoutMotionVector(VkDescriptorSetLayout &descriptorSetL
 	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
 
-	std::array<VkDescriptorSetLayoutBinding, 1> bindings = {uboLayoutBinding};
+	std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.bindingCount = static_cast< uint32_t >( bindings.size() );
 	layoutInfo.pBindings = bindings.data();
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
+	if( vkCreateDescriptorSetLayout( device, &layoutInfo, nullptr, &descriptorSetLayout ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create descriptor set layout!" );
 	}
 }
 
-void createDescriptorPoolMotionVector(VkDescriptorPool &descriptorPool) {
+void createDescriptorPoolMotionVector( VkDescriptorPool& descriptorPool ) {
 	std::array<VkDescriptorPoolSize, 1> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolSizes[0].descriptorCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.poolSizeCount = static_cast< uint32_t >( poolSizes.size() );
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	poolInfo.maxSets = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor pool!");
+	if( vkCreateDescriptorPool( device, &poolInfo, nullptr, &descriptorPool ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create descriptor pool!" );
 	}
 }
 
-void createDescriptorSetsMotionVector(std::vector<VkDescriptorSet> &descriptorSets,
-                                      const std::vector<VkBuffer> &uniformBuffers,
-                                      const VkDeviceSize &uniformBufferSize,
-                                      const VkDescriptorSetLayout &descriptorSetLayout,
-                                      const VkDescriptorPool &descriptorPool) {
-	std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+void createDescriptorSetsMotionVector( std::vector<VkDescriptorSet>& descriptorSets,
+	const std::vector<VkBuffer>& uniformBuffers,
+	const VkDeviceSize& uniformBufferSize,
+	const VkDescriptorSetLayout& descriptorSetLayout,
+	const VkDescriptorPool& descriptorPool ) {
+	std::vector<VkDescriptorSetLayout> layouts( MAX_FRAMES_IN_FLIGHT, descriptorSetLayout );
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = descriptorPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	allocInfo.descriptorSetCount = static_cast< uint32_t >( MAX_FRAMES_IN_FLIGHT );
 	allocInfo.pSetLayouts = layouts.data();
 
-	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-	if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate descriptor sets!");
+	descriptorSets.resize( MAX_FRAMES_IN_FLIGHT );
+	if( vkAllocateDescriptorSets( device, &allocInfo, descriptorSets.data() ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to allocate descriptor sets!" );
 	}
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ ) {
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = uniformBuffers[i];
 		bufferInfo.offset = 0;
@@ -350,14 +350,14 @@ void createDescriptorSetsMotionVector(std::vector<VkDescriptorSet> &descriptorSe
 		descriptorWrites[0].descriptorCount = 1;
 		descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		vkUpdateDescriptorSets( device, static_cast< uint32_t >( descriptorWrites.size() ), descriptorWrites.data(), 0, nullptr );
 	}
 }
 
-VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShaderStageFlagBits stage) {
-	const auto shaderCode = readFile(fileName);
+VkPipelineShaderStageCreateInfo loadShader( const std::string& fileName, VkShaderStageFlagBits stage ) {
+	const auto shaderCode = readFile( fileName );
 
-	VkShaderModule shaderModule = createShaderModule(shaderCode);
+	VkShaderModule shaderModule = createShaderModule( shaderCode );
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -367,23 +367,23 @@ VkPipelineShaderStageCreateInfo loadShader(const std::string &fileName, VkShader
 	return vertShaderStageInfo;
 }
 
-void createGraphicsPipeline(const std::string &vertexPath,
-                            const std::string &fragPath,
-                            VkPipelineLayout &pipelineLayout,
-                            VkPipeline &graphicsPipeline,
-                            const VkRenderPass &renderPass,
-                            const VkSampleCountFlagBits &msaaSamples,
-                            const VkDescriptorSetLayout &descriptorSetLayout,
-                            const float &alphaMask) {
+void createGraphicsPipeline( const std::string& vertexPath,
+	const std::string& fragPath,
+	VkPipelineLayout& pipelineLayout,
+	VkPipeline& graphicsPipeline,
+	const VkRenderPass& renderPass,
+	const VkSampleCountFlagBits& msaaSamples,
+	const VkDescriptorSetLayout& descriptorSetLayout,
+	const float& alphaMask ) {
 	// vertex/Frag shader	
-	VkPipelineShaderStageCreateInfo shaderStages[] = {loadShader(vertexPath, VK_SHADER_STAGE_VERTEX_BIT), loadShader(fragPath, VK_SHADER_STAGE_FRAGMENT_BIT)};
+	VkPipelineShaderStageCreateInfo shaderStages[] = { loadShader( vertexPath, VK_SHADER_STAGE_VERTEX_BIT ), loadShader( fragPath, VK_SHADER_STAGE_FRAGMENT_BIT ) };
 
 	// dynamic states
-	std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 	VkPipelineDynamicStateCreateInfo dynamicState{};
 	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicState.dynamicStateCount = static_cast< uint32_t >( dynamicStates.size() );
 	dynamicState.pDynamicStates = dynamicStates.data();
 
 	auto bindingDescription = Vertex::getBindingDescription();
@@ -393,7 +393,7 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
-	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast< uint32_t >( attributeDescriptions.size() );
 	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
 	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
@@ -431,7 +431,7 @@ void createGraphicsPipeline(const std::string &vertexPath,
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-	                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachment.blendEnable = alphaMask == 0 ? VK_FALSE : VK_TRUE;
 	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; // Optional
 	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
@@ -464,17 +464,16 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-#ifdef DRAW_RASTERIZE
+
 	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.size = sizeof(uint32_t);
+	pushConstantRange.size = sizeof( uint32_t );
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pushConstantRange.offset = 0;
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-#endif
 
-	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create pipeline layout!");
+	if( vkCreatePipelineLayout( device, &pipelineLayoutInfo, nullptr, &pipelineLayout ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create pipeline layout!" );
 	}
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -495,35 +494,35 @@ void createGraphicsPipeline(const std::string &vertexPath,
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
-	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create graphics pipeline!");
+	if( vkCreateGraphicsPipelines( device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create graphics pipeline!" );
 	}
 
-	vkDestroyShaderModule(device, shaderStages[0].module, nullptr);
-	vkDestroyShaderModule(device, shaderStages[1].module, nullptr);
+	vkDestroyShaderModule( device, shaderStages[0].module, nullptr );
+	vkDestroyShaderModule( device, shaderStages[1].module, nullptr );
 }
 
-VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
-	for (VkFormat format : candidates) {
+VkFormat findSupportedFormat( const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features ) {
+	for( VkFormat format : candidates ) {
 		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+		vkGetPhysicalDeviceFormatProperties( physicalDevice, format, &props );
 
-		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+		if( tiling == VK_IMAGE_TILING_LINEAR && ( props.linearTilingFeatures & features ) == features ) {
 			return format;
-		} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+		} else if( tiling == VK_IMAGE_TILING_OPTIMAL && ( props.optimalTilingFeatures & features ) == features ) {
 			return format;
 		}
 	}
 
-	throw std::runtime_error("failed to find supported format!");
+	throw std::runtime_error( "failed to find supported format!" );
 }
 
 VkFormat findDepthFormat() {
-	return findSupportedFormat({VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT}, VK_IMAGE_TILING_OPTIMAL,
-	                           VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+	return findSupportedFormat( { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT }, VK_IMAGE_TILING_OPTIMAL,
+		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT );
 }
 
-void createRenderPass(VkRenderPass &renderPass, const VkFormat &colorImageFormat, const VkFormat &depthImageFormat, VkSampleCountFlagBits msaaSamples) {
+void createRenderPass( VkRenderPass& renderPass, const VkFormat& colorImageFormat, const VkFormat& depthImageFormat, VkSampleCountFlagBits msaaSamples ) {
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = colorImageFormat;
 	colorAttachment.samples = msaaSamples;
@@ -566,80 +565,80 @@ void createRenderPass(VkRenderPass &renderPass, const VkFormat &colorImageFormat
 	dependency.srcAccessMask = 0;
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-	std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+	std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+	renderPassInfo.attachmentCount = static_cast< uint32_t >( attachments.size() );
 	renderPassInfo.pAttachments = attachments.data();
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create render pass!");
+	if( vkCreateRenderPass( device, &renderPassInfo, nullptr, &renderPass ) != VK_SUCCESS ) {
+		throw std::runtime_error( "failed to create render pass!" );
 	}
 }
 
-void createFramebuffers(const VkRenderPass &renderPass, std::vector<VkFramebuffer> &framebuffers, const std::vector<StorageImage> &colorImage, const std::vector<StorageImage> &depthImage) {
-	framebuffers.resize(MAX_FRAMES_IN_FLIGHT);
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		std::array<VkImageView, 2> attachments = {colorImage[i].view, depthImage[i].view};
+void createFramebuffers( const VkRenderPass& renderPass, std::vector<VkFramebuffer>& framebuffers, const std::vector<StorageImage>& colorImage, const std::vector<StorageImage>& depthImage ) {
+	framebuffers.resize( MAX_FRAMES_IN_FLIGHT );
+	for( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ ) {
+		std::array<VkImageView, 2> attachments = { colorImage[i].view, depthImage[i].view };
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = renderPass;
-		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+		framebufferInfo.attachmentCount = static_cast< uint32_t >( attachments.size() );
 		framebufferInfo.pAttachments = attachments.data();
 		framebufferInfo.width = swapChainExtent.width * DLSS_SCALE;
 		framebufferInfo.height = swapChainExtent.height * DLSS_SCALE;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create framebuffer!");
+		if( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &framebuffers[i] ) != VK_SUCCESS ) {
+			throw std::runtime_error( "failed to create framebuffer!" );
 		}
 	}
 }
 
 void createUniformBuffers(
-	std::vector<VkBuffer> &uniformBuffers,
-	std::vector<VkDeviceMemory> &uniformBuffersMemory,
-	std::vector<void*> &uniformBuffersMapped,
-	VkDeviceSize bufferSize) {
-	uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-	uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-	uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+	std::vector<VkBuffer>& uniformBuffers,
+	std::vector<VkDeviceMemory>& uniformBuffersMemory,
+	std::vector<void*>& uniformBuffersMapped,
+	VkDeviceSize bufferSize ) {
+	uniformBuffers.resize( MAX_FRAMES_IN_FLIGHT );
+	uniformBuffersMemory.resize( MAX_FRAMES_IN_FLIGHT );
+	uniformBuffersMapped.resize( MAX_FRAMES_IN_FLIGHT );
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i],
-		             uniformBuffersMemory[i]);
+	for( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ ) {
+		createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i],
+			uniformBuffersMemory[i] );
 
-		vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+		vkMapMemory( device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i] );
 	}
 }
 
-void updateUniformBuffer(uint32_t currentFrame, const objectVulkanite &obj, const glm::mat4 &parent_world) {
-	
+void updateUniformBuffer( uint32_t currentFrame, const objectVulkanite& obj, const glm::mat4& parent_world ) {
+
 	//
 	UniformBufferObject ubo{};
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
+	ubo.proj = glm::perspective( glm::radians( 45.0f ), swapChainExtent.width / ( float )swapChainExtent.height, 0.001f, 10000.f );
 	ubo.proj[1][1] *= -1;
 
 	ubo.model = parent_world * obj.world;
 	ubo.view = camWorld;
-	ubo.invView = glm::inverse(ubo.view);
+	ubo.invView = glm::inverse( ubo.view );
 
-	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+	memcpy( obj.uniformBuffersMapped[currentFrame], &ubo, sizeof( ubo ) );
 }
 
-void updateUniformBufferMotionVector(uint32_t currentFrame, objectVulkanite &obj, const glm::mat4 &parent_world) {
+void updateUniformBufferMotionVector( uint32_t currentFrame, objectVulkanite& obj, const glm::mat4& parent_world ) {
 	UniformBufferObjectMotionVector ubo{};
 
-	auto JitterMatrix = glm::mat4(1);
-	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y, 0.0f));
+	auto JitterMatrix = glm::mat4( 1 );
+	JitterMatrix = glm::translate( JitterMatrix, glm::vec3( jitterCam.x, jitterCam.y, 0.0f ) );
 
-	auto proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.001f, 10000.f);
+	auto proj = glm::perspective( glm::radians( 45.0f ), swapChainExtent.width / ( float )swapChainExtent.height, 0.001f, 10000.f );
 	proj[1][1] *= -1;
 
 	ubo.modelViewProjectionMat = proj * camWorld * parent_world * obj.world;
@@ -647,24 +646,24 @@ void updateUniformBufferMotionVector(uint32_t currentFrame, objectVulkanite &obj
 	ubo.jitterMat = JitterMatrix;
 	obj.PrevModelViewProjectionMat = ubo.modelViewProjectionMat;
 
-	memcpy(obj.uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+	memcpy( obj.uniformBuffersMapped[currentFrame], &ubo, sizeof( ubo ) );
 }
 
-void createUniformParamsBuffers(VkDeviceSize bufferSize, std::vector<VkBuffer> &uniformParamsBuffers, std::vector<VkDeviceMemory> &uniformParamsBuffersMemory, std::vector<void *> &uniformParamsBuffersMapped) {
-	uniformParamsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-	uniformParamsBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-	uniformParamsBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+void createUniformParamsBuffers( VkDeviceSize bufferSize, std::vector<VkBuffer>& uniformParamsBuffers, std::vector<VkDeviceMemory>& uniformParamsBuffersMemory, std::vector<void*>& uniformParamsBuffersMapped ) {
+	uniformParamsBuffers.resize( MAX_FRAMES_IN_FLIGHT );
+	uniformParamsBuffersMemory.resize( MAX_FRAMES_IN_FLIGHT );
+	uniformParamsBuffersMapped.resize( MAX_FRAMES_IN_FLIGHT );
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformParamsBuffers[i],
-		             uniformParamsBuffersMemory[i]);
+	for( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ ) {
+		createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformParamsBuffers[i],
+			uniformParamsBuffersMemory[i] );
 
-		vkMapMemory(device, uniformParamsBuffersMemory[i], 0, bufferSize, 0, &uniformParamsBuffersMapped[i]);
+		vkMapMemory( device, uniformParamsBuffersMemory[i], 0, bufferSize, 0, &uniformParamsBuffersMapped[i] );
 	}
 }
 
-void updateUniformParamsBuffer(UBOParams &uboParams, std::vector<void *> &uniformParamsBuffersMapped, uint32_t currentFrame) {
-	uboParams.lightDir = {0, -1, 0, 0};
+void updateUniformParamsBuffer( UBOParams& uboParams, std::vector<void*>& uniformParamsBuffersMapped, uint32_t currentFrame ) {
+	uboParams.lightDir = { 0, -1, 0, 0 };
 	uboParams.envRot = 0.f;
 	uboParams.exposure = 1.f;
 	uboParams.SHRed = {
@@ -680,5 +679,5 @@ void updateUniformParamsBuffer(UBOParams &uboParams, std::vector<void *> &unifor
 		0.10949002951383591, -0.11785311996936798, -1.8435758352279663, 0.3278958797454834, 0.5047624707221985, -0.4755648374557495, 0.3278958797454834, 4.394355297088623
 	};
 
-	memcpy(uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof(uboParams));
+	memcpy( uniformParamsBuffersMapped[currentFrame], &uboParams, sizeof( uboParams ) );
 }

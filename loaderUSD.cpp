@@ -36,7 +36,6 @@
 #include "pxr/usd/sdf/fileFormat.h"
 #include "pxr/usd/ar/packageUtils.h"
 #include "pxr/base/gf/vec3f.h"
-#include "pTexture.h"
 
 #include "core_utils.h"
 #include "scene.h"
@@ -50,7 +49,6 @@ extern cmrc::embedded_filesystem cmrcFS;
 #include "computeMikkTSpace.h"
 #include "rasterizer.h"
 
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>
 #include <filesystem>
@@ -77,7 +75,7 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 
 	// get all inputs
 	for( const auto& input : shaderUSD.GetInputs() ) {
-		if(!input)
+		if( !input )
 			continue;
 
 		auto attrs = input.GetValueProducingAttributes();
@@ -95,30 +93,24 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 					mat.baseColorFactor.x = diffuseUSD.data()[0];
 					mat.baseColorFactor.y = diffuseUSD.data()[1];
 					mat.baseColorFactor.z = diffuseUSD.data()[2];
-				}
-				else if( baseNameShaderInput == "opacity" ) {
+				} else if( baseNameShaderInput == "opacity" ) {
 					attr.Get( &mat.baseColorFactor.w );
-				}
-				else if( baseNameShaderInput == "occlusion" ) {
+				} else if( baseNameShaderInput == "occlusion" ) {
 					attr.Get( &mat.occlusionFactor );
-				}
-				else if( baseNameShaderInput == "roughness" ) {
+				} else if( baseNameShaderInput == "roughness" ) {
 					attr.Get( &mat.roughnessFactor );
-				}
-				else if( baseNameShaderInput == "metallic" ) {
+				} else if( baseNameShaderInput == "metallic" ) {
 					attr.Get( &mat.metallicFactor );
-				}
-				else if( baseNameShaderInput == "emissiveColor" ) {
+				} else if( baseNameShaderInput == "emissiveColor" ) {
 					pxr::GfVec3f emissiveUSD;
 					attr.Get( &emissiveUSD );
 					mat.emissiveFactor.x = emissiveUSD.data()[0];
 					mat.emissiveFactor.y = emissiveUSD.data()[1];
 					mat.emissiveFactor.z = emissiveUSD.data()[2];
 				}
-			}
-			else {
+			} else {
 				pxr::UsdShadeShader shaderTexture( attr.GetPrim() );
-			//	pxr::ArResolverContextBinder resolverContextBinder( attr.GetPrim().GetStage()->GetPathResolverContext() );
+				//	pxr::ArResolverContextBinder resolverContextBinder( attr.GetPrim().GetStage()->GetPathResolverContext() );
 
 				pxr::TfToken shaderID;
 				shaderTexture.GetShaderId( &shaderID );
@@ -140,7 +132,7 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 							int hashIdentifierPrim = hasher( assetPath.GetAssetPath() );
 							if( scene.textureCache.find( hashIdentifierPrim ) == scene.textureCache.end() )
 								continue;
-							int idTex =	scene.textureCache[hashIdentifierPrim]->id;
+							int idTex = scene.textureCache[hashIdentifierPrim]->id;
 
 							// Add the texture to the material.
 							if( baseNameShaderInput == "diffuseColor" )
@@ -157,7 +149,7 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 								mat.roughnessTex = idTex;
 
 							// Handle the normal texture.
-							if( baseNameShaderInput == "normal" ){
+							if( baseNameShaderInput == "normal" ) {
 								mat.normalTex = idTex;
 								mat.normalTextureSet = 0; // TODO better uv
 							}
@@ -166,8 +158,7 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 							if( baseNameShaderInput == "emissiveColor" )
 								mat.emissiveTex = idTex;
 
-						}
-						else if( baseNameTextureInput == "st" && inputTexture.GetConnectedSources().size() > 0 ) {
+						} else if( baseNameTextureInput == "st" && inputTexture.GetConnectedSources().size() > 0 ) {
 							// Retrieve the source that is connected to the output.
 							auto sourceUV = inputTexture.GetConnectedSources()[0].source;
 
@@ -191,8 +182,7 @@ static void ImportMaterial( const pxr::UsdShadeShader& shaderUSD, std::set<pxr::
 					}
 				}
 			}
-		}
-		else {
+		} else {
 			spdlog::error( fmt::format( "!!! Can't find attr for {}", input.GetFullName().GetString() ) );
 		}
 	}
@@ -255,20 +245,18 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 	for (int j = 0; j < points.size(); ++j)
 		memcpy(&prim.vertices[j].pos.x, points[j].data(), sizeof(float) * 3);*/
 
-	// create all polygon
-	// TODO for now pos will be duplicated if needed, to optimise one day........
+		// create all polygon
+		// TODO for now pos will be duplicated if needed, to optimise one day........
 	int count = 0;
-	for( int j = 0; j < faceVertexCounts.size(); ++j )
-	{
+	for( int j = 0; j < faceVertexCounts.size(); ++j ) {
 		int verticesInPoly = faceVertexCounts[j];
 
-		auto addVertex = [&]( int index )
-		{
+		auto addVertex = [&]( int index ) {
 			Vertex v;
 			memcpy( &v.pos.x, points[faceVertexIndices[index]].data(), sizeof( float ) * 3 );
 
 			v.norm = glm::vec3( 0, 1, 0 );
-			if (normals.size() == points.size())
+			if( normals.size() == points.size() )
 				memcpy( &v.norm.x, normals[faceVertexIndices[index]].data(), sizeof( float ) * 3 );
 			else
 				memcpy( &v.norm.x, normals[index].data(), sizeof( float ) * 3 );
@@ -279,15 +267,13 @@ static void ImportGeometry( const pxr::UsdGeomMesh& geoMesh, const pxr::UsdGeomS
 				else
 					memcpy( &v.texCoord0.x, uvs[0][index].data(), sizeof( float ) * 2 );
 				v.texCoord0.y = 1.f - v.texCoord0.y;
-			}
-			else
+			} else
 				memset( &v.texCoord0.x, 0, sizeof( float ) * 2 );
 
 			prim.vertices.push_back( v );
 			prim.indices.push_back( prim.indices.size() );
 		};
-		for( size_t i{ 2 }; i < verticesInPoly; ++i )
-		{
+		for( size_t i{ 2 }; i < verticesInPoly; ++i ) {
 			addVertex( count + 0 );
 			addVertex( count + i - 1 );
 			addVertex( count + i );
@@ -477,7 +463,7 @@ static void ImportObject( const pxr::UsdPrim& p, objectVulkanite* node ) {
 
 	objectVulkanite subMesh{};
 
-	size_t hashIdentifierPrim = 0;	
+	size_t hashIdentifierPrim = 0;
 	// get only the last hash identifier
 	for( auto o : p.GetPrimIndex().GetNodeRange() ) {
 		std::hash<std::string> hasher;
@@ -536,18 +522,17 @@ static void ImportObject( const pxr::UsdPrim& p, objectVulkanite* node ) {
 		}
 
 		// create VULKAN needs
-#ifdef DRAW_RASTERIZE
 		createDescriptorPool( subMesh.descriptorPool );
 		createUniformBuffers( subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof( UniformBufferObject ) );
 		createDescriptorSets( subMesh.descriptorSets, subMesh.uniformBuffers, sizeof( UniformBufferObject ), scene.descriptorSetLayout, subMesh.descriptorPool, scene.uniformParamsBuffers, sizeof( UBOParams ) );
-#else
+
 		// motion vector
-		createDescriptorPoolMotionVector( subMesh.descriptorPool );
-		createUniformBuffers( subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof( UniformBufferObjectMotionVector ) );
-		createDescriptorSetsMotionVector( subMesh.descriptorSets, subMesh.uniformBuffers, sizeof( UniformBufferObjectMotionVector ), scene.descriptorSetLayout, subMesh.descriptorPool );
-#endif
+		createDescriptorPoolMotionVector( subMesh.descriptorPoolMotionVector );
+		createUniformBuffers( subMesh.uniformBuffersMotionVector, subMesh.uniformBuffersMemoryMotionVector, subMesh.uniformBuffersMappedMotionVector, sizeof( UniformBufferObjectMotionVector ) );
+		createDescriptorSetsMotionVector( subMesh.descriptorSetsMotionVector, subMesh.uniformBuffersMotionVector, sizeof( UniformBufferObjectMotionVector ), scene.descriptorSetLayout, subMesh.descriptorPoolMotionVector );
+
 		node->children.push_back( std::move( subMesh ) );
-		}
+	}
 
 	//	hg::Object object;
 //
@@ -618,7 +603,7 @@ static void ImportObject( const pxr::UsdPrim& p, objectVulkanite* node ) {
 //
 //	return object;
 
-	}
+}
 
 static void ImportCamera( const pxr::UsdPrim& p ) {
 	//auto camera = scene.CreateCamera();
@@ -688,7 +673,7 @@ static glm::mat4 GetXFormMat( const pxr::UsdPrim& p ) {
 }
 
 //
-static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &parent_world ) {
+static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4& parent_world ) {
 
 	auto type = p.GetTypeName();
 
@@ -788,7 +773,7 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &paren
 	//}
 
 	// load instances
-	if (p.IsInstance()){
+	if( p.IsInstance() ) {
 		auto proto = p.GetPrototype();
 		auto protoName = proto.GetName().GetString();
 		std::string out_path_proto;
@@ -814,12 +799,12 @@ static objectVulkanite ImportNode( const pxr::UsdPrim& p, const glm::mat4 &paren
 		//node.SetInstance(scene.CreateInstance(out_path_proto));
 	}
 
-			// import children
+	// import children
 	for( auto c : p.GetChildren() ) {
 		auto type = c.GetTypeName();
 		if( type == "Material" || type == "Shader" ) // don't import node to scene for these types
 			continue;
-		auto child = ImportNode( c, parent_world * node.world);
+		auto child = ImportNode( c, parent_world * node.world );
 		node.children.push_back( std::move( child ) );
 	}
 
@@ -843,7 +828,7 @@ void ImportTexture( pxr::UsdStageRefPtr stage ) {
 
 					if( baseName == "file" ) {
 						// Retrieve the asset file.
-						pxr::ArResolverContextBinder resolverContextBinder(p.GetStage()->GetPathResolverContext());
+						pxr::ArResolverContextBinder resolverContextBinder( p.GetStage()->GetPathResolverContext() );
 						pxr::ArResolver& resolver = pxr::ArGetResolver();
 
 						pxr::SdfAssetPath assetPath;
@@ -880,13 +865,11 @@ void ImportTexture( pxr::UsdStageRefPtr stage ) {
 									scene.textureCache[hashIdentifierPrim] = tex;
 									scene.textureCache[hasher( assetPath.GetAssetPath() )] = tex;
 								}
-							}
-							else {
+							} else {
 								// Retrieve the texture reference from the cached tex and report it to the cache texture reference.
 								scene.textureCache[hasher( assetPath.GetAssetPath() )] = scene.textureCache[hashIdentifierPrim];
 							}
-						}
-						else
+						} else
 							spdlog::error( fmt::format( "Can't find asset with path {}", assetPath.GetAssetPath() ) );
 					}
 				}
@@ -938,7 +921,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 	fLoadAllMaterials = [&]( const pxr::UsdPrim p ) {
 		auto type = p.GetTypeName();
 		if( type == "Mesh" || type == "GeomSubset" ) {
-		
+
 			pxr::UsdGeomMesh geoUSD( p );
 
 			std::string path = p.GetPath().GetString();
@@ -977,8 +960,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 					// if prims already loaded
 					if( hashIdentifierMaterial == 0 || scene.materialsCache.contains( hashIdentifierMaterial ) ) {
 						uvsPerMesh[hashIdentifierPrim] = uvsPerShade[hashIdentifierMaterial];
-					}
-					else {
+					} else {
 						// get the material
 						auto mat = std::make_shared<matVulkanite>();
 						std::set<pxr::TfToken> uvMapVarname;
@@ -1004,8 +986,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 
 						scene.materialsCache[hashIdentifierMaterial] = mat;
 					}
-				}
-				else
+				} else
 					spdlog::error( "!Unexpected shader from UsdShadeShader()" );
 			}
 		}
@@ -1032,12 +1013,12 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.materialsCacheBuffer, sizeof( matVulkanite ) * materialsVector.size(),
 		materialsVector.data() );
 
-#ifdef DRAW_RASTERIZE
-	// create the graphic pipeline with the right amount of textures
-	createDescriptorSetLayout( scene.descriptorSetLayout );
-	createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, msaaSamples, scene.descriptorSetLayout, false );
-	createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, msaaSamples, scene.descriptorSetLayout, true );
-#endif
+	if( scene.DRAW_RASTERIZE ) {
+		// create the graphic pipeline with the right amount of textures
+		createDescriptorSetLayout( scene.descriptorSetLayout );
+		createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, msaaSamples, scene.descriptorSetLayout, false );
+		createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, msaaSamples, scene.descriptorSetLayout, true );
+	}
 
 
 	// load all prims
@@ -1048,7 +1029,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 		if( type == "Mesh" || type == "GeomSubset" ) {
 
 			pxr::UsdGeomMesh geoUSD( p );
-			
+
 			size_t hashIdentifierPrim = 0;
 			// get only the last hash identifier
 			for( auto o : p.GetPrimIndex().GetNodeRange() ) {
@@ -1105,7 +1086,7 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 
 	// import nodes.
 	objectVulkanite root;
-	
+
 	// rotate the root if the transform up is Z
 	if( UsdGeomGetStageUpAxis( stage ) == pxr::UsdGeomTokens->z )
 		root.world = glm::mat4( 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, -1.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 1.f );
@@ -1114,11 +1095,11 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 		auto type = p.GetTypeName();
 		if( type == "Material" || type == "Shader" ) // don't import node to scene for these types
 			continue;
-		auto node = ImportNode( p, glm::mat4(1) );
+		auto node = ImportNode( p, glm::mat4( 1 ) );
 
 		root.children.push_back( std::move( node ) );
 	}
-	
+
 	nodesHierarchy.push_back( std::move( root ) );
 	return nodesHierarchy;
 }

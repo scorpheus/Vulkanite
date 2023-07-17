@@ -17,7 +17,7 @@
 using namespace tinygltf;
 
 #include <cmrc/cmrc.hpp>
-CMRC_DECLARE(gltf_rc);
+CMRC_DECLARE( gltf_rc );
 auto cmrcFS = cmrc::gltf_rc::get_filesystem();
 
 #include "camera.h"
@@ -37,46 +37,46 @@ namespace fs = std::filesystem;
 #include <transcoder/basisu_transcoder.h>
 
 // callback for filesystem for gltf, using inside block
-bool FileExistsVulkanite(const std::string &abs_filename, void *) {
-	return cmrcFS.exists(abs_filename) || fs::exists(fs::path(abs_filename));
+bool FileExistsVulkanite( const std::string& abs_filename, void* ) {
+	return cmrcFS.exists( abs_filename ) || fs::exists( fs::path( abs_filename ) );
 }
 
-bool ReadWholeFileVulkanite(std::vector<unsigned char> *out, std::string *err, const std::string &filepath, void *) {
-	if (cmrcFS.exists(filepath)) {
-		auto fileRC = cmrcFS.open(filepath);
-		out->insert(out->begin(), fileRC.begin(), fileRC.end());
+bool ReadWholeFileVulkanite( std::vector<unsigned char>* out, std::string* err, const std::string& filepath, void* ) {
+	if( cmrcFS.exists( filepath ) ) {
+		auto fileRC = cmrcFS.open( filepath );
+		out->insert( out->begin(), fileRC.begin(), fileRC.end() );
 	} else {
-		std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-		if (!file.is_open()) {
+		std::ifstream file( filepath, std::ios::binary | std::ios::ate );
+		if( !file.is_open() ) {
 			return false;
 		}
 
 		std::streamsize size = file.tellg();
-		file.seekg(0, std::ios::beg);
+		file.seekg( 0, std::ios::beg );
 
 		// Redimensionne le vecteur à la taille du fichier et le lit
-		out->resize(size);
-		if (!file.read((char *)out->data(), size)) {
+		out->resize( size );
+		if( !file.read( ( char* )out->data(), size ) ) {
 			return false;
 		}
 	}
 	return true;
 }
 
-bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::string *warn, int req_width, int req_height, const unsigned char *bytes, int size, void *user_data) {
+bool LoadImageDataEx( Image* image, const int image_idx, std::string* err, std::string* warn, int req_width, int req_height, const unsigned char* bytes, int size, void* user_data ) {
 	std::string imageName = image->uri;
 
-	if (image->uri.empty())
-		imageName = image->name.empty() ? fmt::format("{}", image_idx) : image->name;
+	if( image->uri.empty() )
+		imageName = image->name.empty() ? fmt::format( "{}", image_idx ) : image->name;
 
-	const std::shared_ptr<textureVulkanite> tex(new textureVulkanite);
+	const std::shared_ptr<textureVulkanite> tex( new textureVulkanite );
 	tex->name = imageName;
 	tex->textureImage = nullptr;
 
-	if (image->mimeType == "image/ktx2" || fs::path(imageName).extension() == ".ktx2") {
+	if( image->mimeType == "image/ktx2" || fs::path( imageName ).extension() == ".ktx2" ) {
 		// test load ktx from khronos ktx
-		ktxTexture *texture = nullptr;
-		if (ktxTexture_CreateFromMemory(bytes, size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture) == KTX_SUCCESS) {
+		ktxTexture* texture = nullptr;
+		if( ktxTexture_CreateFromMemory( bytes, size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture ) == KTX_SUCCESS ) {
 			// Retrieve information about the texture from fields in the ktxTexture
 			// such as:
 			ktx_uint32_t numLevels = texture->numLevels;
@@ -90,20 +90,20 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 			ktx_uint32_t faceSlice = 0;
 			ktx_size_t offset;
 
-			if (ktxTexture_GetImageOffset(texture, level, layer, faceSlice, &offset) == KTX_SUCCESS) {
-				auto imageSize = ktxTexture_GetImageSize(texture, level);
-				auto yo1 = ktxTexture_GetVkFormat(texture);
-				ktx_uint8_t *imageKTX = ktxTexture_GetData(texture) + offset;
+			if( ktxTexture_GetImageOffset( texture, level, layer, faceSlice, &offset ) == KTX_SUCCESS ) {
+				auto imageSize = ktxTexture_GetImageSize( texture, level );
+				auto yo1 = ktxTexture_GetVkFormat( texture );
+				ktx_uint8_t* imageKTX = ktxTexture_GetData( texture ) + offset;
 
-				createTextureImage(imageKTX, texture->baseWidth, texture->baseHeight, imageSize, tex->textureImage, tex->textureImageMemory, tex->mipLevels,
-				                   VK_FORMAT_R8G8B8A8_UNORM);
+				createTextureImage( imageKTX, texture->baseWidth, texture->baseHeight, imageSize, tex->textureImage, tex->textureImageMemory, tex->mipLevels,
+					VK_FORMAT_R8G8B8A8_UNORM );
 			}
-			ktxTexture_Destroy(texture);
+			ktxTexture_Destroy( texture );
 		} else {
 			// if not working, try from basisu
 			basist::basisu_transcoder_init();
-			basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
-			basist::basisu_transcoder transcoder(&sel_codebook);
+			basist::etc1_global_selector_codebook sel_codebook( basist::g_global_selector_cb_size, basist::g_global_selector_cb );
+			basist::basisu_transcoder transcoder( &sel_codebook );
 
 			//transcoder.start_transcoding(bytes, size);
 			//auto total_image = transcoder.get_total_images(bytes, size);
@@ -116,15 +116,15 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 			//transcoder.transcode_image_level();
 
 
-			if (transcoder.validate_header(bytes, size)) {
+			if( transcoder.validate_header( bytes, size ) ) {
 				//spdlog::debug(fmt::format("Requested {} bytes for {}x{} image", size, cx, cx));
 				basist::basisu_image_info info;
-				if (transcoder.get_image_info(bytes, size, info, 0)) {
+				if( transcoder.get_image_info( bytes, size, info, 0 ) ) {
 					uint32_t level = 0;
 					uint32_t descW = 0, descH = 0, blocks;
-					for (uint32_t n = 0; n < info.m_total_levels; n++) {
-						if (transcoder.get_image_level_desc(bytes, size, 0, n, descW, descH, blocks)) {
-							spdlog::debug(fmt::format("mipmap level w: {}, h: {} (blocks: {})", descW, descH, blocks));
+					for( uint32_t n = 0; n < info.m_total_levels; n++ ) {
+						if( transcoder.get_image_level_desc( bytes, size, 0, n, descW, descH, blocks ) ) {
+							spdlog::debug( fmt::format( "mipmap level w: {}, h: {} (blocks: {})", descW, descH, blocks ) );
 							//	if (cx >= std::max(descW, descH)) {
 							level = n;
 							break;
@@ -132,14 +132,14 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 						}
 					}
 					basist::basisu_file_info fileInfo;
-					transcoder.get_file_info(bytes, size, fileInfo);
-					if (transcoder.start_transcoding(bytes, size)) {
-						uint32_t sizeUncompressed = basist::basis_get_uncompressed_bytes_per_pixel(basist::transcoder_texture_format::cTFRGBA32) * descW * descH;
-						spdlog::debug(fmt::format("Started transcode ({}x{} @ {} bytes)", descW, descH, sizeUncompressed));
-						if (void *rgbBuf = malloc(sizeUncompressed)) {
+					transcoder.get_file_info( bytes, size, fileInfo );
+					if( transcoder.start_transcoding( bytes, size ) ) {
+						uint32_t sizeUncompressed = basist::basis_get_uncompressed_bytes_per_pixel( basist::transcoder_texture_format::cTFRGBA32 ) * descW * descH;
+						spdlog::debug( fmt::format( "Started transcode ({}x{} @ {} bytes)", descW, descH, sizeUncompressed ) );
+						if( void* rgbBuf = malloc( sizeUncompressed ) ) {
 							// Note: the API expects total pixels here instead of blocks for cTFRGBA32
-							if (transcoder.transcode_image_level(bytes, size, 0, level, rgbBuf, descW * descH, basist::transcoder_texture_format::cTFRGBA32)) {
-								spdlog::debug("Decoded!!!!");
+							if( transcoder.transcode_image_level( bytes, size, 0, level, rgbBuf, descW * descH, basist::transcoder_texture_format::cTFRGBA32 ) ) {
+								spdlog::debug( "Decoded!!!!" );
 								//		*phbmp = rgbToBitmap(static_cast<uint32_t*>(rgbBuf), descW, descH, fileInfo.m_y_flipped);
 							}
 							delete rgbBuf;
@@ -149,11 +149,11 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 			}
 		}
 	} else
-		createTextureImage(bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels);
+		createTextureImage( bytes, size, tex->textureImage, tex->textureImageMemory, tex->mipLevels );
 
-	if (tex->textureImage != nullptr) {
-		tex->textureImageView = createTextureImageView(tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM);
-		createTextureSampler(tex->textureSampler, tex->mipLevels);
+	if( tex->textureImage != nullptr ) {
+		tex->textureImageView = createTextureImageView( tex->textureImage, tex->mipLevels, VK_FORMAT_R8G8B8A8_UNORM );
+		createTextureSampler( tex->textureSampler, tex->mipLevels );
 
 		scene.textureCache[image_idx + 1] = tex;
 	}
@@ -163,9 +163,9 @@ bool LoadImageDataEx(Image *image, const int image_idx, std::string *err, std::s
 
 std::map<std::string, int> geoPathOcurrence;
 
-static std::string Indent(const int indent) {
+static std::string Indent( const int indent ) {
 	std::string s;
-	for (int i = 0; i < indent; i++) {
+	for( int i = 0; i < indent; i++ ) {
 		s += "  ";
 	}
 	return s;
@@ -176,9 +176,9 @@ static std::string Indent(const int indent) {
 template
 <
 	typename T>
-struct arrayAdapter {
+	struct arrayAdapter {
 	/// Pointer to the bytes
-	const unsigned char *dataPtr;
+	const unsigned char* dataPtr;
 	/// Number of elements in the array
 	const size_t elemCount;
 	/// Stride in bytes between two elements
@@ -188,37 +188,36 @@ struct arrayAdapter {
 	/// \param ptr Pointer to the start of the data, with offset applied
 	/// \param count Number of elements in the array
 	/// \param byte_stride Stride betweens elements in the array
-	arrayAdapter(const unsigned char *ptr, size_t count, size_t byte_stride) : dataPtr(ptr), elemCount(count), stride(byte_stride) {
-	}
+	arrayAdapter( const unsigned char* ptr, size_t count, size_t byte_stride ) : dataPtr( ptr ), elemCount( count ), stride( byte_stride ) {}
 
 	/// Returns a *copy* of a single element. Can't be used to modify it.
-	T operator[](size_t pos) const {
-		if (pos >= elemCount)
-			throw std::out_of_range("Tried to access beyond the last element of an array adapter with "
-			                        "count " +
-			                        std::to_string(elemCount) + " while getting elemnet number " + std::to_string(pos));
-		return *(reinterpret_cast<const T*>(dataPtr + pos * stride));
+	T operator[]( size_t pos ) const {
+		if( pos >= elemCount )
+			throw std::out_of_range( "Tried to access beyond the last element of an array adapter with "
+				"count " +
+				std::to_string( elemCount ) + " while getting elemnet number " + std::to_string( pos ) );
+		return *( reinterpret_cast< const T* >( dataPtr + pos * stride ) );
 	}
 };
 
 /// Interface of any adapted array that returns byte data
 struct byteArrayBase {
 	virtual ~byteArrayBase() = default;
-	virtual unsigned char operator[](size_t) const = 0;
+	virtual unsigned char operator[]( size_t ) const = 0;
 	virtual size_t size() const = 0;
 };
 
 /// Interface of any adapted array that returns integer data
 struct intArrayBase {
 	virtual ~intArrayBase() = default;
-	virtual unsigned int operator[](size_t) const = 0;
+	virtual unsigned int operator[]( size_t ) const = 0;
 	virtual size_t size() const = 0;
 };
 
 /// Interface of any adapted array that returns float data
 struct floatArrayBase {
 	virtual ~floatArrayBase() = default;
-	virtual float operator[](size_t) const = 0;
+	virtual float operator[]( size_t ) const = 0;
 	virtual size_t size() const = 0;
 };
 
@@ -230,10 +229,9 @@ template
 struct byteArray : public byteArrayBase {
 	arrayAdapter<T> adapter;
 
-	explicit byteArray(const arrayAdapter<T> &a) : adapter(a) {
-	}
+	explicit byteArray( const arrayAdapter<T>& a ) : adapter( a ) {}
 
-	unsigned char operator[](size_t position) const override { return static_cast<unsigned char>(adapter[position]); }
+	unsigned char operator[]( size_t position ) const override { return static_cast< unsigned char >( adapter[position] ); }
 
 	size_t size() const override { return adapter.elemCount; }
 };
@@ -246,10 +244,9 @@ template
 struct intArray : public intArrayBase {
 	arrayAdapter<T> adapter;
 
-	explicit intArray(const arrayAdapter<T> &a) : adapter(a) {
-	}
+	explicit intArray( const arrayAdapter<T>& a ) : adapter( a ) {}
 
-	unsigned int operator[](size_t position) const override { return static_cast<unsigned int>(adapter[position]); }
+	unsigned int operator[]( size_t position ) const override { return static_cast< unsigned int >( adapter[position] ); }
 
 	size_t size() const override { return adapter.elemCount; }
 };
@@ -261,10 +258,9 @@ template
 struct floatArray : public floatArrayBase {
 	arrayAdapter<T> adapter;
 
-	explicit floatArray(const arrayAdapter<T> &a) : adapter(a) {
-	}
+	explicit floatArray( const arrayAdapter<T>& a ) : adapter( a ) {}
 
-	float operator[](size_t position) const override { return static_cast<float>(adapter[position]); }
+	float operator[]( size_t position ) const override { return static_cast< float >( adapter[position] ); }
 
 	size_t size() const override { return adapter.elemCount; }
 };
@@ -272,40 +268,36 @@ struct floatArray : public floatArrayBase {
 struct v2fArray {
 	arrayAdapter<glm::vec2> adapter;
 
-	explicit v2fArray(const arrayAdapter<glm::vec2> &a) : adapter(a) {
-	}
+	explicit v2fArray( const arrayAdapter<glm::vec2>& a ) : adapter( a ) {}
 
-	glm::vec2 operator[](size_t position) const { return adapter[position]; }
+	glm::vec2 operator[]( size_t position ) const { return adapter[position]; }
 	size_t size() const { return adapter.elemCount; }
 };
 
 struct v3fArray {
 	arrayAdapter<glm::vec3> adapter;
 
-	explicit v3fArray(const arrayAdapter<glm::vec3> &a) : adapter(a) {
-	}
+	explicit v3fArray( const arrayAdapter<glm::vec3>& a ) : adapter( a ) {}
 
-	glm::vec3 operator[](size_t position) const { return adapter[position]; }
+	glm::vec3 operator[]( size_t position ) const { return adapter[position]; }
 	size_t size() const { return adapter.elemCount; }
 };
 
 struct v4fArray {
 	arrayAdapter<glm::vec4> adapter;
 
-	explicit v4fArray(const arrayAdapter<glm::vec4> &a) : adapter(a) {
-	}
+	explicit v4fArray( const arrayAdapter<glm::vec4>& a ) : adapter( a ) {}
 
-	glm::vec4 operator[](size_t position) const { return adapter[position]; }
+	glm::vec4 operator[]( size_t position ) const { return adapter[position]; }
 	size_t size() const { return adapter.elemCount; }
 };
 
 struct m44fArray {
 	arrayAdapter<glm::mat4> adapter;
 
-	explicit m44fArray(const arrayAdapter<glm::mat4> &a) : adapter(a) {
-	}
+	explicit m44fArray( const arrayAdapter<glm::mat4>& a ) : adapter( a ) {}
 
-	glm::mat4 operator[](size_t position) const { return adapter[position]; }
+	glm::mat4 operator[]( size_t position ) const { return adapter[position]; }
 	size_t size() const { return adapter.elemCount; }
 };
 
@@ -515,25 +507,25 @@ struct m44fArray {
 //}
 
 //
-static int ImportTexture(const Model &model, const int &textureIndex) {
-	if (textureIndex < 0)
+static int ImportTexture( const Model& model, const int& textureIndex ) {
+	if( textureIndex < 0 )
 		return -1;
 
-	const auto &texture = model.textures[textureIndex];
+	const auto& texture = model.textures[textureIndex];
 	auto textureSourceIndex = texture.source;
-	if (textureSourceIndex < 0) {
-		if (texture.extensions.find("KHR_texture_basisu") == texture.extensions.end())
+	if( textureSourceIndex < 0 ) {
+		if( texture.extensions.find( "KHR_texture_basisu" ) == texture.extensions.end() )
 			return -1;
-		textureSourceIndex = texture.extensions.at("KHR_texture_basisu").GetNumberAsInt();
+		textureSourceIndex = texture.extensions.at( "KHR_texture_basisu" ).GetNumberAsInt();
 	}
-	const auto &image = model.images[textureSourceIndex];
+	const auto& image = model.images[textureSourceIndex];
 
 	std::string imageName = image.uri;
 
-	if (image.uri.empty())
-		imageName = image.name.empty() ? fmt::format("{}", textureIndex) : image.name;
+	if( image.uri.empty() )
+		imageName = image.name.empty() ? fmt::format( "{}", textureIndex ) : image.name;
 
-	if (scene.textureCache.find(textureSourceIndex + 1) != scene.textureCache.end()) {
+	if( scene.textureCache.find( textureSourceIndex + 1 ) != scene.textureCache.end() ) {
 		return scene.textureCache[textureSourceIndex + 1]->id;
 	}
 	return -1;
@@ -563,72 +555,72 @@ static int ImportTexture(const Model &model, const int &textureIndex) {
 	// return resources.textures.Add(dst_rel_path.c_str(), {flags, BGFX_INVALID_HANDLE});
 }
 
-static void ImportMaterial(const Model &model, const Material &gltf_mat, matVulkanite &mat) {
-	float glossiness{1.f};
-	float reflection{1.f};
+static void ImportMaterial( const Model& model, const Material& gltf_mat, matVulkanite& mat ) {
+	float glossiness{ 1.f };
+	float reflection{ 1.f };
 
-	spdlog::debug(fmt::format("Importing material '{}'", gltf_mat.name));
+	spdlog::debug( fmt::format( "Importing material '{}'", gltf_mat.name ) );
 
 	//
 	std::string dst_path;
 
 	// BaseColor Texture
-	if (auto baseColorTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index); baseColorTexture >= 0) {
+	if( auto baseColorTexture = ImportTexture( model, gltf_mat.pbrMetallicRoughness.baseColorTexture.index ); baseColorTexture >= 0 ) {
 		mat.albedoTex = baseColorTexture;
 		mat.colorTextureSet = gltf_mat.pbrMetallicRoughness.baseColorTexture.texCoord;
 	}
 
 	// metallic Roughness Texture
-	if (auto metallicRoughnessTexture = ImportTexture(model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index); metallicRoughnessTexture >= 0) {
+	if( auto metallicRoughnessTexture = ImportTexture( model, gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.index ); metallicRoughnessTexture >= 0 ) {
 		mat.metallicTex = mat.roughnessTex = metallicRoughnessTexture;
 		mat.metallicTextureSet = mat.roughnessTextureSet = gltf_mat.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
 	}
 
 	// ao Texture
-	if (auto occlusionTexture = ImportTexture(model, gltf_mat.occlusionTexture.index); occlusionTexture >= 0) {
+	if( auto occlusionTexture = ImportTexture( model, gltf_mat.occlusionTexture.index ); occlusionTexture >= 0 ) {
 		mat.aoTex = occlusionTexture;
 		mat.occlusionTextureSet = gltf_mat.occlusionTexture.texCoord;
 	}
 
 	// normal Texture
-	if (auto normalTexture = ImportTexture(model, gltf_mat.normalTexture.index); normalTexture >= 0) {
+	if( auto normalTexture = ImportTexture( model, gltf_mat.normalTexture.index ); normalTexture >= 0 ) {
 		mat.normalTex = normalTexture;
 		mat.normalTextureSet = gltf_mat.normalTexture.texCoord;
 	}
 
 	// emissive Texture
-	if (auto emissiveTexture = ImportTexture(model, gltf_mat.emissiveTexture.index); emissiveTexture >= 0) {
+	if( auto emissiveTexture = ImportTexture( model, gltf_mat.emissiveTexture.index ); emissiveTexture >= 0 ) {
 		mat.emissiveTex = emissiveTexture;
 		mat.emissiveTextureSet = gltf_mat.emissiveTexture.texCoord;
 	}
 
 	mat.baseColorFactor = {
-		static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[0]), static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[1]),
-		static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[2]), static_cast<float>(gltf_mat.pbrMetallicRoughness.baseColorFactor[3])
+		static_cast< float >( gltf_mat.pbrMetallicRoughness.baseColorFactor[0] ), static_cast< float >( gltf_mat.pbrMetallicRoughness.baseColorFactor[1] ),
+		static_cast< float >( gltf_mat.pbrMetallicRoughness.baseColorFactor[2] ), static_cast< float >( gltf_mat.pbrMetallicRoughness.baseColorFactor[3] )
 	};
-	mat.roughnessFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.roughnessFactor);
-	mat.metallicFactor = static_cast<float>(gltf_mat.pbrMetallicRoughness.metallicFactor);
+	mat.roughnessFactor = static_cast< float >( gltf_mat.pbrMetallicRoughness.roughnessFactor );
+	mat.metallicFactor = static_cast< float >( gltf_mat.pbrMetallicRoughness.metallicFactor );
 	mat.emissiveFactor = {
-		static_cast<float>(gltf_mat.emissiveFactor[0]), static_cast<float>(gltf_mat.emissiveFactor[1]), static_cast<float>(gltf_mat.emissiveFactor[2])
+		static_cast< float >( gltf_mat.emissiveFactor[0] ), static_cast< float >( gltf_mat.emissiveFactor[1] ), static_cast< float >( gltf_mat.emissiveFactor[2] )
 	};
 
 
-	if (gltf_mat.alphaMode == "BLEND")
+	if( gltf_mat.alphaMode == "BLEND" )
 		mat.alphaMask = 1;
 
-	if (gltf_mat.alphaMode == "MASK") {
+	if( gltf_mat.alphaMode == "MASK" ) {
 		mat.alphaMask = 2;
 		mat.alphaMaskCutoff = gltf_mat.alphaCutoff;
 	}
 
 	// check extension transmission	
-	if (auto KHR_materials_transmission = gltf_mat.extensions.find("KHR_materials_transmission"); KHR_materials_transmission != gltf_mat.extensions.end()) {
-		if (KHR_materials_transmission->second.Has("transmissionFactor"))
-			mat.transmissionFactor = KHR_materials_transmission->second.Get("transmissionFactor").GetNumberAsDouble();
+	if( auto KHR_materials_transmission = gltf_mat.extensions.find( "KHR_materials_transmission" ); KHR_materials_transmission != gltf_mat.extensions.end() ) {
+		if( KHR_materials_transmission->second.Has( "transmissionFactor" ) )
+			mat.transmissionFactor = KHR_materials_transmission->second.Get( "transmissionFactor" ).GetNumberAsDouble();
 
-		if (KHR_materials_transmission->second.Has("transmissionTexture")) {
-			auto transmissionTextureInfoIndex = KHR_materials_transmission->second.Get("transmissionTexture").Get("index").GetNumberAsInt();
-			if (auto transmissionTexture = ImportTexture(model, transmissionTextureInfoIndex); transmissionTexture >= 0) {
+		if( KHR_materials_transmission->second.Has( "transmissionTexture" ) ) {
+			auto transmissionTextureInfoIndex = KHR_materials_transmission->second.Get( "transmissionTexture" ).Get( "index" ).GetNumberAsInt();
+			if( auto transmissionTexture = ImportTexture( model, transmissionTextureInfoIndex ); transmissionTexture >= 0 ) {
 				mat.transmissionTex = transmissionTexture;
 				mat.transmissionTextureSet = 0;
 			}
@@ -636,18 +628,18 @@ static void ImportMaterial(const Model &model, const Material &gltf_mat, matVulk
 	}
 
 	// check extension transmission
-	if (auto KHR_materials_ior = gltf_mat.extensions.find("KHR_materials_ior "); KHR_materials_ior != gltf_mat.extensions.end()) {
-		mat.ior = KHR_materials_ior->second.Get("ior").GetNumberAsDouble();
+	if( auto KHR_materials_ior = gltf_mat.extensions.find( "KHR_materials_ior " ); KHR_materials_ior != gltf_mat.extensions.end() ) {
+		mat.ior = KHR_materials_ior->second.Get( "ior" ).GetNumberAsDouble();
 	}
 
-	if (gltf_mat.doubleSided)
+	if( gltf_mat.doubleSided )
 		mat.doubleSided = true;
 }
 
 #define __PolIndex (pol_index[p] + v)
 #define __PolRemapIndex (pol_index[p] + (geo.pol[p].vtx_count - 1 - v))
 
-static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, primMeshVulkanite &prim) {
+static void ImportGeometry( const Model& model, const Primitive& meshPrimitive, primMeshVulkanite& prim ) {
 	// TODO detect instancing (using SHA1 on model)
 
 	// Boolean used to check if we have converted the vertex buffer format
@@ -656,58 +648,58 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, p
 	// This permit to get a type agnostic way of reading the index buffer
 	std::unique_ptr<intArrayBase> indicesArrayPtr = nullptr;
 
-	if (meshPrimitive.indices == -1) {
-		spdlog::debug("ERROR: Can't load geometry without triangles indices");
+	if( meshPrimitive.indices == -1 ) {
+		spdlog::debug( "ERROR: Can't load geometry without triangles indices" );
 		return;
 	}
 
 	{
-		const auto &indicesAccessor = model.accessors[meshPrimitive.indices];
-		const auto &bufferView = model.bufferViews[indicesAccessor.bufferView];
-		const auto &buffer = model.buffers[bufferView.buffer];
+		const auto& indicesAccessor = model.accessors[meshPrimitive.indices];
+		const auto& bufferView = model.bufferViews[indicesAccessor.bufferView];
+		const auto& buffer = model.buffers[bufferView.buffer];
 		const auto dataAddress = buffer.data.data() + bufferView.byteOffset + indicesAccessor.byteOffset;
-		const auto byteStride = indicesAccessor.ByteStride(bufferView);
+		const auto byteStride = indicesAccessor.ByteStride( bufferView );
 		const auto count = indicesAccessor.count;
 
 		// Allocate the index array in the pointer-to-base declared in the
 		// parent scope
-		switch (indicesAccessor.componentType) {
-			case TINYGLTF_COMPONENT_TYPE_BYTE:
-				indicesArrayPtr = std::unique_ptr<intArray<char>>(new intArray<char>(arrayAdapter<char>(dataAddress, count, byteStride)));
-				break;
+		switch( indicesAccessor.componentType ) {
+		case TINYGLTF_COMPONENT_TYPE_BYTE:
+			indicesArrayPtr = std::unique_ptr<intArray<char>>( new intArray<char>( arrayAdapter<char>( dataAddress, count, byteStride ) ) );
+			break;
 
-			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-				indicesArrayPtr = std::unique_ptr<intArray<unsigned char>>(new intArray<unsigned char>(arrayAdapter<unsigned char>(dataAddress, count, byteStride)));
-				break;
+		case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+			indicesArrayPtr = std::unique_ptr<intArray<unsigned char>>( new intArray<unsigned char>( arrayAdapter<unsigned char>( dataAddress, count, byteStride ) ) );
+			break;
 
-			case TINYGLTF_COMPONENT_TYPE_SHORT:
-				indicesArrayPtr = std::unique_ptr<intArray<short>>(new intArray<short>(arrayAdapter<short>(dataAddress, count, byteStride)));
-				break;
+		case TINYGLTF_COMPONENT_TYPE_SHORT:
+			indicesArrayPtr = std::unique_ptr<intArray<short>>( new intArray<short>( arrayAdapter<short>( dataAddress, count, byteStride ) ) );
+			break;
 
-			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-				indicesArrayPtr = std::unique_ptr<intArray<unsigned short>>(new intArray<unsigned short>(arrayAdapter<unsigned short>(dataAddress, count, byteStride)));
-				break;
+		case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+			indicesArrayPtr = std::unique_ptr<intArray<unsigned short>>( new intArray<unsigned short>( arrayAdapter<unsigned short>( dataAddress, count, byteStride ) ) );
+			break;
 
-			case TINYGLTF_COMPONENT_TYPE_INT:
-				indicesArrayPtr = std::unique_ptr<intArray<int>>(new intArray<int>(arrayAdapter<int>(dataAddress, count, byteStride)));
-				break;
+		case TINYGLTF_COMPONENT_TYPE_INT:
+			indicesArrayPtr = std::unique_ptr<intArray<int>>( new intArray<int>( arrayAdapter<int>( dataAddress, count, byteStride ) ) );
+			break;
 
-			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-				indicesArrayPtr = std::unique_ptr<intArray<unsigned int>>(new intArray<unsigned int>(arrayAdapter<unsigned int>(dataAddress, count, byteStride)));
-				break;
-			default:
-				break;
+		case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+			indicesArrayPtr = std::unique_ptr<intArray<unsigned int>>( new intArray<unsigned int>( arrayAdapter<unsigned int>( dataAddress, count, byteStride ) ) );
+			break;
+		default:
+			break;
 		}
 	}
 
-	if (indicesArrayPtr) {
-		const auto &indices = *indicesArrayPtr;
+	if( indicesArrayPtr ) {
+		const auto& indices = *indicesArrayPtr;
 
-		for (auto i = 0; i < indices.size(); ++i)
-			prim.indices.push_back(indices[i]);
+		for( auto i = 0; i < indices.size(); ++i )
+			prim.indices.push_back( indices[i] );
 	}
 
-	switch (meshPrimitive.mode) {
+	switch( meshPrimitive.mode ) {
 		// We re-arrange the indices so that it describe a simple list of
 		// triangles
 		//case TINYGLTF_MODE_TRIANGLE_FAN:
@@ -742,352 +734,352 @@ static void ImportGeometry(const Model &model, const Primitive &meshPrimitive, p
 		//			geo.binding.push_back(triangleStrip[i]);
 		//		}
 		//	}
-		case TINYGLTF_MODE_TRIANGLES: {
-			// this is the simpliest case to handle
-			spdlog::debug("TRIANGLES");
+	case TINYGLTF_MODE_TRIANGLES:
+	{
+		// this is the simpliest case to handle
+		spdlog::debug( "TRIANGLES" );
 
-			using AttribWritter = std::function<void(float *w, uint32_t p)>;
-			AttribWritter w_position = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_normal = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_texcoord0 = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_texcoord1 = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_color0 = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_tangent = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_joints0 = [](float *w, uint32_t p) {
-			};
-			AttribWritter w_weights0 = [](float *w, uint32_t p) {
-			};
+		using AttribWritter = std::function<void( float* w, uint32_t p )>;
+		AttribWritter w_position = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_normal = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_texcoord0 = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_texcoord1 = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_color0 = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_tangent = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_joints0 = []( float* w, uint32_t p ) {
+		};
+		AttribWritter w_weights0 = []( float* w, uint32_t p ) {
+		};
 
-			// get the accessor
-			for (const auto &attribute : meshPrimitive.attributes) {
-				const auto attribAccessor = model.accessors[attribute.second];
-				const auto &bufferView = model.bufferViews[attribAccessor.bufferView];
-				const auto &buffer = model.buffers[bufferView.buffer];
-				const auto dataPtr = buffer.data.data() + bufferView.byteOffset + attribAccessor.byteOffset;
-				const auto byte_stride = attribAccessor.ByteStride(bufferView);
-				const bool normalized = attribAccessor.normalized;
+		// get the accessor
+		for( const auto& attribute : meshPrimitive.attributes ) {
+			const auto attribAccessor = model.accessors[attribute.second];
+			const auto& bufferView = model.bufferViews[attribAccessor.bufferView];
+			const auto& buffer = model.buffers[bufferView.buffer];
+			const auto dataPtr = buffer.data.data() + bufferView.byteOffset + attribAccessor.byteOffset;
+			const auto byte_stride = attribAccessor.ByteStride( bufferView );
+			const bool normalized = attribAccessor.normalized;
 
-				AttribWritter *writter = nullptr;
-				unsigned int max_components = 0;
-				if (attribute.first == "POSITION") {
-					writter = &w_position;
-					max_components = 3;
-				} else if (attribute.first == "NORMAL") {
-					writter = &w_normal;
-					max_components = 3;
-				} else if (attribute.first == "TEXCOORD_0") {
-					writter = &w_texcoord0;
-					max_components = 2;
-				} else if (attribute.first == "TEXCOORD_1") {
-					writter = &w_texcoord1;
-					max_components = 2;
-				} else if (attribute.first == "COLOR_0") {
-					writter = &w_color0;
-					max_components = 4;
-				} else if (attribute.first == "TANGENT") {
-					writter = &w_tangent;
-					max_components = 4;
-				} else if (attribute.first == "JOINTS_0") {
-					writter = &w_joints0;
-					max_components = 4;
-				} else if (attribute.first == "WEIGHTS_0") {
-					writter = &w_weights0;
-					max_components = 4;
-				}
-
-				if (!writter)
-					continue;
-
-				switch (attribAccessor.type) {
-					case TINYGLTF_TYPE_SCALAR:
-						max_components = std::min(max_components, 1u);
-						break;
-					case TINYGLTF_TYPE_VEC2:
-						max_components = std::min(max_components, 2u);
-						break;
-					case TINYGLTF_TYPE_VEC3:
-						max_components = std::min(max_components, 3u);
-						break;
-					case TINYGLTF_TYPE_VEC4:
-						max_components = std::min(max_components, 4u);
-						break;
-				}
-
-				switch (attribAccessor.componentType) {
-					case TINYGLTF_COMPONENT_TYPE_FLOAT:
-						*writter = [dataPtr, byte_stride, max_components](float *w, uint32_t p) {
-							const float *f = (const float*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_DOUBLE:
-						*writter = [dataPtr, byte_stride, max_components](float *w, uint32_t p) {
-							const double *f = (const double*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = static_cast<float>(f[i]);
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_BYTE:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const int8_t *f = (const int8_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)128 : f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_SHORT:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const int16_t *f = (const int16_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)32768 : f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_INT:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const int32_t *f = (const int32_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)2147483648 : f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const uint8_t *f = (const uint8_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)255 : f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const uint16_t *f = (const uint16_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)65535 : f[i];
-							}
-						};
-						break;
-					case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-						*writter = [dataPtr, byte_stride, max_components, normalized](float *w, uint32_t p) {
-							const uint32_t *f = (const uint32_t*)(dataPtr + p * byte_stride);
-							for (unsigned int i = 0; i < max_components; ++i) {
-								w[i] = normalized ? f[i] / (float)4294967295 : f[i];
-							}
-						};
-						break;
-					default:
-						assert(!"Not supported component type (yet)");
-				}
+			AttribWritter* writter = nullptr;
+			unsigned int max_components = 0;
+			if( attribute.first == "POSITION" ) {
+				writter = &w_position;
+				max_components = 3;
+			} else if( attribute.first == "NORMAL" ) {
+				writter = &w_normal;
+				max_components = 3;
+			} else if( attribute.first == "TEXCOORD_0" ) {
+				writter = &w_texcoord0;
+				max_components = 2;
+			} else if( attribute.first == "TEXCOORD_1" ) {
+				writter = &w_texcoord1;
+				max_components = 2;
+			} else if( attribute.first == "COLOR_0" ) {
+				writter = &w_color0;
+				max_components = 4;
+			} else if( attribute.first == "TANGENT" ) {
+				writter = &w_tangent;
+				max_components = 4;
+			} else if( attribute.first == "JOINTS_0" ) {
+				writter = &w_joints0;
+				max_components = 4;
+			} else if( attribute.first == "WEIGHTS_0" ) {
+				writter = &w_weights0;
+				max_components = 4;
 			}
 
-			// set the vertex first (to have the count) TODO maybe not needed
-			for (const auto &attribute : meshPrimitive.attributes) {
-				const auto attribAccessor = model.accessors[attribute.second];
-				const auto count = attribAccessor.count;
+			if( !writter )
+				continue;
 
-				// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
-				spdlog::debug(fmt::format("attribute string is : {}", attribute.first));
-				if (attribute.first == "POSITION") {
-					spdlog::debug("found position attribute");
-
-					if (prim.vertices.empty())
-						prim.vertices.resize(count);
-
-
-					// get the position min/max for computing the boundingbox
-					/*		pMin.x = attribAccessor.minValues[0];
-					pMin.y = attribAccessor.minValues[1];
-					pMin.z = attribAccessor.minValues[2];
-					pMax.x = attribAccessor.maxValues[0];
-					pMax.y = attribAccessor.maxValues[1];
-					pMax.z = attribAccessor.maxValues[2];
-					*/
-					// 3D vector of float
-					glm::vec3 v;
-					for (uint32_t i{0}; i < count; ++i) {
-						w_position(&v.x, i);
-						prim.vertices[i].pos = v;
-					}
-					break;
-				}
+			switch( attribAccessor.type ) {
+			case TINYGLTF_TYPE_SCALAR:
+				max_components = std::min( max_components, 1u );
+				break;
+			case TINYGLTF_TYPE_VEC2:
+				max_components = std::min( max_components, 2u );
+				break;
+			case TINYGLTF_TYPE_VEC3:
+				max_components = std::min( max_components, 3u );
+				break;
+			case TINYGLTF_TYPE_VEC4:
+				max_components = std::min( max_components, 4u );
+				break;
 			}
 
-			// set the values
-			for (const auto &attribute : meshPrimitive.attributes) {
-				const auto attribAccessor = model.accessors[attribute.second];
-				const auto count = attribAccessor.count;
-
-				if (attribute.first == "NORMAL") {
-					spdlog::debug("found normal attribute");
-
-					glm::vec3 n;
-					for (uint32_t i{0}; i < count; ++i) {
-						w_normal(&n.x, i);
-						prim.vertices[i].norm = n;
+			switch( attribAccessor.componentType ) {
+			case TINYGLTF_COMPONENT_TYPE_FLOAT:
+				*writter = [dataPtr, byte_stride, max_components]( float* w, uint32_t p ) {
+					const float* f = ( const float* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = f[i];
 					}
-				}
-
-				// Face varying comment on the normals is also true for the UVs
-				if (attribute.first == "TEXCOORD_0") {
-					spdlog::debug("Found texture coordinates 0");
-
-					glm::vec2 uv;
-					for (uint32_t i{0}; i < count; ++i) {
-						w_texcoord0(&uv.x, i);
-						prim.vertices[i].texCoord0 = uv;
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_DOUBLE:
+				*writter = [dataPtr, byte_stride, max_components]( float* w, uint32_t p ) {
+					const double* f = ( const double* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = static_cast< float >( f[i] );
 					}
-				}
-				// Face varying comment on the normals is also true for the UVs
-				if (attribute.first == "TEXCOORD_1") {
-					spdlog::debug("Found texture coordinates 1");
-
-					glm::vec2 uv;
-					for (uint32_t i{0}; i < count; ++i) {
-						w_texcoord1(&uv.x, i);
-						prim.vertices[i].texCoord1 = uv;
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_BYTE:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const int8_t* f = ( const int8_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )128 : f[i];
 					}
-				}
-
-				// Vertex Color
-				if (attribute.first == "COLOR_0") {
-					spdlog::debug("Found vertex color 0");
-
-					glm::vec4 c0{0, 0, 0, 1};
-					for (uint32_t i{0}; i < count; ++i) {
-						w_color0(&c0.x, i);
-						prim.vertices[i].color = c0;
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_SHORT:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const int16_t* f = ( const int16_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )32768 : f[i];
 					}
-				}
-
-				//// JOINTS_0
-				//if (attribute.first == "JOINTS_0") {
-				//	spdlog::debug("found JOINTS_0 attribute");
-
-				//	if (geo.skin.size() < count + start_id_vtx)
-				//		geo.skin.resize(count + start_id_vtx);
-
-				//	glm::vec4 joints;
-				//	for (size_t i{0}; i < count; ++i) {
-				//		w_joints0(&joints.x, i);
-				//		geo.skin[i + start_id_vtx].index[0] = hg::numeric_cast<uint16_t>((int)(joints.x));
-				//		geo.skin[i + start_id_vtx].index[1] = hg::numeric_cast<uint16_t>((int)(joints.y));
-				//		geo.skin[i + start_id_vtx].index[2] = hg::numeric_cast<uint16_t>((int)(joints.z));
-				//		geo.skin[i + start_id_vtx].index[3] = hg::numeric_cast<uint16_t>((int)(joints.w));
-				//	}
-				//}
-
-				//// WEIGHTS_0
-				//if (attribute.first == "WEIGHTS_0") {
-				//	spdlog::debug("found WEIGHTS_0 attribute");
-
-				//	if (geo.skin.size() < count + start_id_vtx)
-				//		geo.skin.resize(count + start_id_vtx);
-
-				//	glm::vec4 weights;
-				//	for (size_t i{0}; i < count; ++i) {
-				//		w_weights0(&weights.x, i);
-				//		geo.skin[i + start_id_vtx].weight[0] = hg::pack_float<uint8_t>(weights.x);
-				//		geo.skin[i + start_id_vtx].weight[1] = hg::pack_float<uint8_t>(weights.y);
-				//		geo.skin[i + start_id_vtx].weight[2] = hg::pack_float<uint8_t>(weights.z);
-				//		geo.skin[i + start_id_vtx].weight[3] = hg::pack_float<uint8_t>(weights.w);
-				//	}
-				//}
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_INT:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const int32_t* f = ( const int32_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )2147483648 : f[i];
+					}
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const uint8_t* f = ( const uint8_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )255 : f[i];
+					}
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const uint16_t* f = ( const uint16_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )65535 : f[i];
+					}
+				};
+				break;
+			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+				*writter = [dataPtr, byte_stride, max_components, normalized]( float* w, uint32_t p ) {
+					const uint32_t* f = ( const uint32_t* )( dataPtr + p * byte_stride );
+					for( unsigned int i = 0; i < max_components; ++i ) {
+						w[i] = normalized ? f[i] / ( float )4294967295 : f[i];
+					}
+				};
+				break;
+			default:
+				assert( !"Not supported component type (yet)" );
 			}
-
-			// special for the tangent, because it need the normal to compute the bitangent
-			for (const auto &attribute : meshPrimitive.attributes) {
-				const auto attribAccessor = model.accessors[attribute.second];
-				const auto count = attribAccessor.count;
-
-				// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
-
-				spdlog::debug(fmt::format("attribute string is : {}", attribute.first).c_str());
-				if (attribute.first == "TANGENT") {
-					spdlog::debug("found tangent attribute");
-					hasTangent = true;
-
-					glm::vec4 t;
-					for (uint32_t i{0}; i < count; ++i) {
-						w_normal(&t.x, i);
-						prim.vertices[i].tangent = t;
-					}
-				}
-			}
-			break;
 		}
-		default:
-			throw std::runtime_error("primitive mode not implemented");
-			break;
+
+		// set the vertex first (to have the count) TODO maybe not needed
+		for( const auto& attribute : meshPrimitive.attributes ) {
+			const auto attribAccessor = model.accessors[attribute.second];
+			const auto count = attribAccessor.count;
+
+			// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
+			spdlog::debug( fmt::format( "attribute string is : {}", attribute.first ) );
+			if( attribute.first == "POSITION" ) {
+				spdlog::debug( "found position attribute" );
+
+				if( prim.vertices.empty() )
+					prim.vertices.resize( count );
+
+
+				// get the position min/max for computing the boundingbox
+				/*		pMin.x = attribAccessor.minValues[0];
+				pMin.y = attribAccessor.minValues[1];
+				pMin.z = attribAccessor.minValues[2];
+				pMax.x = attribAccessor.maxValues[0];
+				pMax.y = attribAccessor.maxValues[1];
+				pMax.z = attribAccessor.maxValues[2];
+				*/
+				// 3D vector of float
+				glm::vec3 v;
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_position( &v.x, i );
+					prim.vertices[i].pos = v;
+				}
+				break;
+			}
+		}
+
+		// set the values
+		for( const auto& attribute : meshPrimitive.attributes ) {
+			const auto attribAccessor = model.accessors[attribute.second];
+			const auto count = attribAccessor.count;
+
+			if( attribute.first == "NORMAL" ) {
+				spdlog::debug( "found normal attribute" );
+
+				glm::vec3 n;
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_normal( &n.x, i );
+					prim.vertices[i].norm = n;
+				}
+			}
+
+			// Face varying comment on the normals is also true for the UVs
+			if( attribute.first == "TEXCOORD_0" ) {
+				spdlog::debug( "Found texture coordinates 0" );
+
+				glm::vec2 uv;
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_texcoord0( &uv.x, i );
+					prim.vertices[i].texCoord0 = uv;
+				}
+			}
+			// Face varying comment on the normals is also true for the UVs
+			if( attribute.first == "TEXCOORD_1" ) {
+				spdlog::debug( "Found texture coordinates 1" );
+
+				glm::vec2 uv;
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_texcoord1( &uv.x, i );
+					prim.vertices[i].texCoord1 = uv;
+				}
+			}
+
+			// Vertex Color
+			if( attribute.first == "COLOR_0" ) {
+				spdlog::debug( "Found vertex color 0" );
+
+				glm::vec4 c0{0, 0, 0, 1};
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_color0( &c0.x, i );
+					prim.vertices[i].color = c0;
+				}
+			}
+
+			//// JOINTS_0
+			//if (attribute.first == "JOINTS_0") {
+			//	spdlog::debug("found JOINTS_0 attribute");
+
+			//	if (geo.skin.size() < count + start_id_vtx)
+			//		geo.skin.resize(count + start_id_vtx);
+
+			//	glm::vec4 joints;
+			//	for (size_t i{0}; i < count; ++i) {
+			//		w_joints0(&joints.x, i);
+			//		geo.skin[i + start_id_vtx].index[0] = hg::numeric_cast<uint16_t>((int)(joints.x));
+			//		geo.skin[i + start_id_vtx].index[1] = hg::numeric_cast<uint16_t>((int)(joints.y));
+			//		geo.skin[i + start_id_vtx].index[2] = hg::numeric_cast<uint16_t>((int)(joints.z));
+			//		geo.skin[i + start_id_vtx].index[3] = hg::numeric_cast<uint16_t>((int)(joints.w));
+			//	}
+			//}
+
+			//// WEIGHTS_0
+			//if (attribute.first == "WEIGHTS_0") {
+			//	spdlog::debug("found WEIGHTS_0 attribute");
+
+			//	if (geo.skin.size() < count + start_id_vtx)
+			//		geo.skin.resize(count + start_id_vtx);
+
+			//	glm::vec4 weights;
+			//	for (size_t i{0}; i < count; ++i) {
+			//		w_weights0(&weights.x, i);
+			//		geo.skin[i + start_id_vtx].weight[0] = hg::pack_float<uint8_t>(weights.x);
+			//		geo.skin[i + start_id_vtx].weight[1] = hg::pack_float<uint8_t>(weights.y);
+			//		geo.skin[i + start_id_vtx].weight[2] = hg::pack_float<uint8_t>(weights.z);
+			//		geo.skin[i + start_id_vtx].weight[3] = hg::pack_float<uint8_t>(weights.w);
+			//	}
+			//}
+		}
+
+		// special for the tangent, because it need the normal to compute the bitangent
+		for( const auto& attribute : meshPrimitive.attributes ) {
+			const auto attribAccessor = model.accessors[attribute.second];
+			const auto count = attribAccessor.count;
+
+			// spdlog::debug(fmt::format("current attribute has count {} and stride {} bytes", count, byte_stride).c_str());
+
+			spdlog::debug( fmt::format( "attribute string is : {}", attribute.first ).c_str() );
+			if( attribute.first == "TANGENT" ) {
+				spdlog::debug( "found tangent attribute" );
+				hasTangent = true;
+
+				glm::vec4 t;
+				for( uint32_t i{ 0 }; i < count; ++i ) {
+					w_normal( &t.x, i );
+					prim.vertices[i].tangent = t;
+				}
+			}
+		}
+		break;
+	}
+	default:
+		throw std::runtime_error( "primitive mode not implemented" );
+		break;
 
 		// These aren't triangles:
-		case TINYGLTF_MODE_POINTS:
-		case TINYGLTF_MODE_LINE:
-		case TINYGLTF_MODE_LINE_LOOP:
-			throw std::runtime_error("primitive is not triangle based, ignoring");
+	case TINYGLTF_MODE_POINTS:
+	case TINYGLTF_MODE_LINE:
+	case TINYGLTF_MODE_LINE_LOOP:
+		throw std::runtime_error( "primitive is not triangle based, ignoring" );
 	}
 
 
 	// check if there is tangent, if not recompile
-	if (!hasTangent) {
-		spdlog::debug("    - Recalculate tangent frames");
+	if( !hasTangent ) {
+		spdlog::debug( "    - Recalculate tangent frames" );
 		CalcTangents calc;
-		calc.calc(&prim);
+		calc.calc( &prim );
 	}
 }
 
 //
-static void ImportObject(const Model &model, const Node &gltf_node, objectVulkanite &node, const int &gltf_id_node) {
+static void ImportObject( const Model& model, const Node& gltf_node, objectVulkanite& node, const int& gltf_id_node ) {
 	// if there is no mesh or no skin, nothing inside objectVulkanite
-	if (gltf_node.mesh < 0 && gltf_node.skin < 0)
+	if( gltf_node.mesh < 0 && gltf_node.skin < 0 )
 		return;
 
 	std::string path = node.name;
 
 	// Import geo mesh
-	if (gltf_node.mesh >= 0) {
+	if( gltf_node.mesh >= 0 ) {
 		auto gltf_mesh = model.meshes[gltf_node.mesh];
 
-		for (auto meshPrimitive : gltf_mesh.primitives) {
+		for( auto meshPrimitive : gltf_mesh.primitives ) {
 			objectVulkanite subMesh{};
 			subMesh.id = meshPrimitive.indices;
 
 			// get the prim mesh from the cache
-			if (scene.primsMeshCache.contains(subMesh.id))
+			if( scene.primsMeshCache.contains( subMesh.id ) )
 				subMesh.primMesh = subMesh.id;
 
 			// MATERIALS
-			if (meshPrimitive.material >= 0) {
+			if( meshPrimitive.material >= 0 ) {
 				subMesh.matCacheID = meshPrimitive.material + 1;
 				subMesh.mat = scene.materialsCache[meshPrimitive.material + 1]->id;
 			} else {
 				// make a dummy material to see the objectVulkanite in the engine
-				spdlog::debug(fmt::format("    - Has no material, set a dummy one"));
-				
+				spdlog::debug( fmt::format( "    - Has no material, set a dummy one" ) );
+
 				subMesh.matCacheID = 0;
 				subMesh.mat = 0;
 			}
 
 			// create VULKAN needs
-#ifdef DRAW_RASTERIZE
-			createDescriptorPool(subMesh.descriptorPool);
-			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObject));
-			createDescriptorSets(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObject), scene.descriptorSetLayout, subMesh.descriptorPool, scene.uniformParamsBuffers, sizeof(UBOParams));
-#else
+			createDescriptorPool( subMesh.descriptorPool );
+			createUniformBuffers( subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof( UniformBufferObject ) );
+			createDescriptorSets( subMesh.descriptorSets, subMesh.uniformBuffers, sizeof( UniformBufferObject ), scene.descriptorSetLayout, subMesh.descriptorPool, scene.uniformParamsBuffers, sizeof( UBOParams ) );
+
 			// motion vector
-			createDescriptorPoolMotionVector(subMesh.descriptorPool);
-			createUniformBuffers(subMesh.uniformBuffers, subMesh.uniformBuffersMemory, subMesh.uniformBuffersMapped, sizeof(UniformBufferObjectMotionVector));
-			createDescriptorSetsMotionVector(subMesh.descriptorSets, subMesh.uniformBuffers, sizeof(UniformBufferObjectMotionVector), scene.descriptorSetLayout, subMesh.descriptorPool);
-#endif
-			node.children.push_back(std::move(subMesh));
+			createDescriptorPoolMotionVector( subMesh.descriptorPoolMotionVector );
+			createUniformBuffers( subMesh.uniformBuffersMotionVector, subMesh.uniformBuffersMemoryMotionVector, subMesh.uniformBuffersMappedMotionVector, sizeof( UniformBufferObjectMotionVector ) );
+			createDescriptorSetsMotionVector( subMesh.descriptorSetsMotionVector, subMesh.uniformBuffersMotionVector, sizeof( UniformBufferObjectMotionVector ), scene.descriptorSetLayout, subMesh.descriptorPoolMotionVector );
+
+			node.children.push_back( std::move( subMesh ) );
 		}
 
 		//const auto vtx_to_pol = hg::ComputeVertexToPolygon(geo);
@@ -1177,12 +1169,12 @@ static void ImportObject(const Model &model, const Node &gltf_node, objectVulkan
 	//} else
 	//	geoPathOcurrence[path] = 0;
 
-	if (gltf_node.mesh >= 0 || gltf_node.skin >= 0)
-		spdlog::debug(fmt::format("Import geometry to '{}'", path));
+	if( gltf_node.mesh >= 0 || gltf_node.skin >= 0 )
+		spdlog::debug( fmt::format( "Import geometry to '{}'", path ) );
 }
 
 
-static void ImportCamera(const Model &model, const Node &gltf_node, objectVulkanite &node) {
+static void ImportCamera( const Model& model, const Node& gltf_node, objectVulkanite& node ) {
 	//auto camera = scene.CreateCamera();
 
 	//auto gltf_camera = model.cameras[gltf_node.camera];
@@ -1199,7 +1191,7 @@ static void ImportCamera(const Model &model, const Node &gltf_node, objectVulkan
 	//}
 	//node.SetCamera(camera);
 
-	updateCamWorld(node.world);
+	updateCamWorld( node.world );
 }
 
 //static void ImportLight(const Model &model, const size_t &id_light, hg::Node &node, std::vector<objectVulkanite> &scene) {
@@ -1227,10 +1219,10 @@ static void ImportCamera(const Model &model, const Node &gltf_node, objectVulkan
 //}
 
 //
-static objectVulkanite ImportNode(const Model &model, const int &gltf_id_node) {
-	const auto &gltf_node = model.nodes[gltf_id_node];
+static objectVulkanite ImportNode( const Model& model, const int& gltf_id_node ) {
+	const auto& gltf_node = model.nodes[gltf_id_node];
 	objectVulkanite node{};
-	node.name = gltf_node.name.empty() ? fmt::format("node{}", gltf_id_node) : gltf_node.name;
+	node.name = gltf_node.name.empty() ? fmt::format( "node{}", gltf_id_node ) : gltf_node.name;
 	//idNode_to_NodeRef[gltf_id_node] = node.ref;
 
 	// check if disable
@@ -1241,24 +1233,24 @@ static objectVulkanite ImportNode(const Model &model, const int &gltf_id_node) {
 	//}
 
 	// set transform
-	if (gltf_node.matrix.size()) {
-		node.world = glm::make_mat4x4(gltf_node.matrix.data());
+	if( gltf_node.matrix.size() ) {
+		node.world = glm::make_mat4x4( gltf_node.matrix.data() );
 	} else {
-		if (!gltf_node.translation.empty())
-			node.world = glm::translate(node.world, glm::vec3(glm::make_vec3(gltf_node.translation.data())));
+		if( !gltf_node.translation.empty() )
+			node.world = glm::translate( node.world, glm::vec3( glm::make_vec3( gltf_node.translation.data() ) ) );
 
-		if (!gltf_node.rotation.empty()) {
-			const glm::quat q = glm::make_quat(gltf_node.rotation.data());
-			node.world *= glm::mat4(q);
+		if( !gltf_node.rotation.empty() ) {
+			const glm::quat q = glm::make_quat( gltf_node.rotation.data() );
+			node.world *= glm::mat4( q );
 		}
 
-		if (!gltf_node.scale.empty())
-			node.world = glm::scale(node.world, glm::vec3(glm::make_vec3(gltf_node.scale.data())));
+		if( !gltf_node.scale.empty() )
+			node.world = glm::scale( node.world, glm::vec3( glm::make_vec3( gltf_node.scale.data() ) ) );
 	}
 
 	// is it a camera
-	if (gltf_node.camera >= 0)
-		ImportCamera(model, gltf_node, node);
+	if( gltf_node.camera >= 0 )
+		ImportCamera( model, gltf_node, node );
 
 	//// is it a light
 	//auto KHR_lights_punctual = gltf_node.extensions.find("KHR_lights_punctual");
@@ -1270,26 +1262,26 @@ static objectVulkanite ImportNode(const Model &model, const int &gltf_id_node) {
 	//}
 
 	// is it a mesh
-	if (gltf_node.mesh >= 0 || gltf_node.skin >= 0) {
+	if( gltf_node.mesh >= 0 || gltf_node.skin >= 0 ) {
 		// if the node doesn't have a name, give the geo name, if there is one
-		if (gltf_node.name.empty() && gltf_node.mesh >= 0) {
+		if( gltf_node.name.empty() && gltf_node.mesh >= 0 ) {
 			auto gltf_mesh = model.meshes[gltf_node.mesh];
-			if (!gltf_mesh.name.empty())
-				node.name = fs::path(gltf_mesh.name).replace_extension().string();
+			if( !gltf_mesh.name.empty() )
+				node.name = fs::path( gltf_mesh.name ).replace_extension().string();
 		}
-		ImportObject(model, gltf_node, node, gltf_id_node);
+		ImportObject( model, gltf_node, node, gltf_id_node );
 	}
 
 	// import children
-	for (auto id_child : gltf_node.children) {
-		auto child = ImportNode(model, id_child);
-		node.children.push_back(std::move(child));
+	for( auto id_child : gltf_node.children ) {
+		auto child = ImportNode( model, id_child );
+		node.children.push_back( std::move( child ) );
 	}
 
-	return std::move(node);
+	return std::move( node );
 }
 
-std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath) {
+std::vector<objectVulkanite> loadSceneGLTF( const std::string& scenePath ) {
 	//
 	Model model;
 	TinyGLTF loader;
@@ -1297,49 +1289,49 @@ std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath) {
 	std::string warn;
 
 	// set our own save picture
-	loader.SetImageLoader(LoadImageDataEx, nullptr);
+	loader.SetImageLoader( LoadImageDataEx, nullptr );
 	// callback for filesystem for gltf, using inside block
-	loader.SetFsCallbacks({&FileExistsVulkanite, &ExpandFilePath, &ReadWholeFileVulkanite, &WriteWholeFile});
+	loader.SetFsCallbacks( { &FileExistsVulkanite, &ExpandFilePath, &ReadWholeFileVulkanite, &WriteWholeFile } );
 
 	bool ret;
-	if (fs::path(scenePath).extension() == ".gltf") {
-		if (cmrcFS.exists(scenePath)) {
-			auto gltfRC = cmrcFS.open(scenePath);
-			ret = loader.LoadASCIIFromString(&model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), fs::path(scenePath).parent_path().string());
+	if( fs::path( scenePath ).extension() == ".gltf" ) {
+		if( cmrcFS.exists( scenePath ) ) {
+			auto gltfRC = cmrcFS.open( scenePath );
+			ret = loader.LoadASCIIFromString( &model, &err, &warn, gltfRC.cbegin(), gltfRC.size(), fs::path( scenePath ).parent_path().string() );
 		} else
-			ret = loader.LoadASCIIFromFile(&model, &err, &warn, scenePath);
+			ret = loader.LoadASCIIFromFile( &model, &err, &warn, scenePath );
 	} else {
-		if (cmrcFS.exists(scenePath)) {
-			auto gltfRC = cmrcFS.open(scenePath);
-			ret = loader.LoadBinaryFromMemory(&model, &err, &warn, reinterpret_cast<const unsigned char *>(gltfRC.cbegin()), gltfRC.size());
+		if( cmrcFS.exists( scenePath ) ) {
+			auto gltfRC = cmrcFS.open( scenePath );
+			ret = loader.LoadBinaryFromMemory( &model, &err, &warn, reinterpret_cast< const unsigned char* >( gltfRC.cbegin() ), gltfRC.size() );
 		} else
-			ret = loader.LoadBinaryFromFile(&model, &err, &warn, scenePath); // for binary glTF(.glb)
+			ret = loader.LoadBinaryFromFile( &model, &err, &warn, scenePath ); // for binary glTF(.glb)
 	}
 
-	if (!ret) {
-		spdlog::error(fmt::format("failed to load {}: {}", scenePath, err));
+	if( !ret ) {
+		spdlog::error( fmt::format( "failed to load {}: {}", scenePath, err ) );
 		return {};
 	}
 
-	if (!warn.empty()) {
-		spdlog::info(fmt::format("warning {}: {}", scenePath, warn));
+	if( !warn.empty() ) {
+		spdlog::info( fmt::format( "warning {}: {}", scenePath, warn ) );
 	}
 
-	spdlog::info("loaded glTF file has:");
-	spdlog::info(fmt::format("{} accessors", model.accessors.size()));
-	spdlog::info(fmt::format("{} animations", model.animations.size()));
-	spdlog::info(fmt::format("{} buffers", model.buffers.size()));
-	spdlog::info(fmt::format("{} bufferViews", model.bufferViews.size()));
-	spdlog::info(fmt::format("{} materials", model.materials.size()));
-	spdlog::info(fmt::format("{} meshes", model.meshes.size()));
-	spdlog::info(fmt::format("{} nodes", model.nodes.size()));
-	spdlog::info(fmt::format("{} textures", model.textures.size()));
-	spdlog::info(fmt::format("{} images", model.images.size()));
-	spdlog::info(fmt::format("{} skins", model.skins.size()));
-	spdlog::info(fmt::format("{} samplers", model.samplers.size()));
-	spdlog::info(fmt::format("{} cameras", model.cameras.size()));
-	spdlog::info(fmt::format("{} scenes", model.scenes.size()));
-	spdlog::info(fmt::format("{} lights", model.lights.size()));
+	spdlog::info( "loaded glTF file has:" );
+	spdlog::info( fmt::format( "{} accessors", model.accessors.size() ) );
+	spdlog::info( fmt::format( "{} animations", model.animations.size() ) );
+	spdlog::info( fmt::format( "{} buffers", model.buffers.size() ) );
+	spdlog::info( fmt::format( "{} bufferViews", model.bufferViews.size() ) );
+	spdlog::info( fmt::format( "{} materials", model.materials.size() ) );
+	spdlog::info( fmt::format( "{} meshes", model.meshes.size() ) );
+	spdlog::info( fmt::format( "{} nodes", model.nodes.size() ) );
+	spdlog::info( fmt::format( "{} textures", model.textures.size() ) );
+	spdlog::info( fmt::format( "{} images", model.images.size() ) );
+	spdlog::info( fmt::format( "{} skins", model.skins.size() ) );
+	spdlog::info( fmt::format( "{} samplers", model.samplers.size() ) );
+	spdlog::info( fmt::format( "{} cameras", model.cameras.size() ) );
+	spdlog::info( fmt::format( "{} scenes", model.scenes.size() ) );
+	spdlog::info( fmt::format( "{} lights", model.lights.size() ) );
 
 	// create white texture
 	{
@@ -1368,42 +1360,40 @@ std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath) {
 	scene.materialsCache[0] = std::make_shared<matVulkanite>();
 
 	int counter = 1;
-	for (const auto &mat : model.materials){
+	for( const auto& mat : model.materials ) {
 		auto matV = std::make_shared<matVulkanite>();
-		ImportMaterial(model, mat, *matV);
+		ImportMaterial( model, mat, *matV );
 		scene.materialsCache[counter++] = matV;
 	}
 
 	std::vector<matVulkanite> materialsVector;
-	materialsVector.reserve(scene.materialsCache.size());
-	
-	uint32_t counterMaterial = 0;
-	for (auto& pair : scene.materialsCache) {
-		pair.second->id = counterMaterial++;
-		materialsVector.push_back(*pair.second);
-	}
-	
-	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.materialsCacheBuffer, sizeof(matVulkanite) * materialsVector.size(),
-	             materialsVector.data());
+	materialsVector.reserve( scene.materialsCache.size() );
 
-#ifdef DRAW_RASTERIZE
+	uint32_t counterMaterial = 0;
+	for( auto& pair : scene.materialsCache ) {
+		pair.second->id = counterMaterial++;
+		materialsVector.push_back( *pair.second );
+	}
+
+	createBuffer( VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.materialsCacheBuffer, sizeof( matVulkanite ) * materialsVector.size(),
+		materialsVector.data() );
+
 	// create the graphic pipeline with the right amount of textures
-	createDescriptorSetLayout(scene.descriptorSetLayout);
-	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, msaaSamples, scene.descriptorSetLayout, false);
-	createGraphicsPipeline("spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, msaaSamples, scene.descriptorSetLayout, true);
-#endif
+	createDescriptorSetLayout( scene.descriptorSetLayout );
+	createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayout, scene.graphicsPipeline, scene.renderPass, msaaSamples, scene.descriptorSetLayout, false );
+	createGraphicsPipeline( "spv/shader.vert.spv", "spv/shader.frag.spv", scene.pipelineLayoutAlpha, scene.graphicsPipelineAlpha, scene.renderPass, msaaSamples, scene.descriptorSetLayout, true );
 
 	// load all prims
-	for (const auto &mesh : model.meshes) {
-		for (const auto &meshPrimitive : mesh.primitives) {
-			if (scene.primsMeshCache.contains(meshPrimitive.indices))
+	for( const auto& mesh : model.meshes ) {
+		for( const auto& meshPrimitive : mesh.primitives ) {
+			if( scene.primsMeshCache.contains( meshPrimitive.indices ) )
 				continue;
 
 			auto primMesh = std::make_shared<primMeshVulkanite>();
-			ImportGeometry(model, meshPrimitive, *primMesh);
-			createVertexBuffer(primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory);
-			createIndexBuffer(primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory);
+			ImportGeometry( model, meshPrimitive, *primMesh );
+			createVertexBuffer( primMesh->vertices, primMesh->vertexBuffer, primMesh->vertexBufferMemory );
+			createIndexBuffer( primMesh->indices, primMesh->indexBuffer, primMesh->indexBufferMemory );
 
 			scene.primsMeshCache[meshPrimitive.indices] = primMesh;
 		}
@@ -1416,33 +1406,33 @@ std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath) {
 	};
 	std::vector<offsetPrim> offsetPrims;
 	uint32_t counterPrim = 0;
-	for (auto &prim : scene.primsMeshCache) {
+	for( auto& prim : scene.primsMeshCache ) {
 		prim.second->id = counterPrim;
-		offsetPrims.push_back({static_cast<uint32_t>(allVertices.size()), static_cast<uint32_t>(allIndices.size())});
-		allVertices.insert(allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end());
-		allIndices.insert(allIndices.end(), prim.second->indices.begin(), prim.second->indices.end());
+		offsetPrims.push_back( { static_cast< uint32_t >( allVertices.size() ), static_cast< uint32_t >( allIndices.size() ) } );
+		allVertices.insert( allVertices.end(), prim.second->vertices.begin(), prim.second->vertices.end() );
+		allIndices.insert( allIndices.end(), prim.second->indices.begin(), prim.second->indices.end() );
 		++counterPrim;
 	}
 	// store these buffer in vkBuffer
 	VkDeviceMemory allVerticesBufferMemory;
 	VkDeviceMemory allIndicesBufferMemory;
-	createVertexBuffer(allVertices, scene.allVerticesBuffer, allVerticesBufferMemory);
-	createIndexBuffer(allIndices, scene.allIndicesBuffer, allIndicesBufferMemory);
-	createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-	             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.offsetPrimsBuffer, sizeof(offsetPrim) * offsetPrims.size(),
-	             offsetPrims.data());
+	createVertexBuffer( allVertices, scene.allVerticesBuffer, allVerticesBufferMemory );
+	createIndexBuffer( allIndices, scene.allIndicesBuffer, allIndicesBufferMemory );
+	createBuffer( VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &scene.offsetPrimsBuffer, sizeof( offsetPrim ) * offsetPrims.size(),
+		offsetPrims.data() );
 
 	// Handle only one big scene
 	std::vector<objectVulkanite> nodesHierarchy;
-	for (auto gltf_scene : model.scenes) {
-		for (auto gltf_id_node : gltf_scene.nodes) {
-			auto node = ImportNode(model, gltf_id_node);
-			nodesHierarchy.push_back(std::move(node));
+	for( auto gltf_scene : model.scenes ) {
+		for( auto gltf_id_node : gltf_scene.nodes ) {
+			auto node = ImportNode( model, gltf_id_node );
+			nodesHierarchy.push_back( std::move( node ) );
 		}
 
 		//ImportMotions(model, gltf_scene, scene, config);
 		//ImportSkins(model, gltf_scene, scene, config);		
 	}
 
-	return std::move(nodesHierarchy);
+	return std::move( nodesHierarchy );
 }

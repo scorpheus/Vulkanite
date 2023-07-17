@@ -1,3 +1,6 @@
 [submodule "extern/DLSS"]
 	path = extern/DLSS
 	url = https://github.com/NVIDIA/DLSS.git
+[submodule "extern/OpenUSD"]
+	path = extern/OpenUSD
+	url = https://github.com/PixarAnimationStudios/OpenUSD.git

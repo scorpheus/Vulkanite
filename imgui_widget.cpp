@@ -16,6 +16,7 @@
 
 #include "core_utils.h"
 #include "imgui_widget.h"
+#include "scene.h"
 
 void ShowFPS() {
     static std::deque<float> fpsValues;
@@ -25,7 +26,7 @@ void ShowFPS() {
     float currentFPS = std::floor(ImGui::GetIO().Framerate);
     fpsValues.push_back(currentFPS);
     if (fpsValues.size() > 100) fpsValues.pop_front();
-
+    
     auto t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = t2 - t1;
 
@@ -43,7 +44,9 @@ void ShowFPS() {
 
     float plotHeight = ImGui::GetTextLineHeightWithSpacing() * 4; // Get the plot height to match 4 lines of text
     ImVec2 plotSize = ImVec2(-1, plotHeight);  // -1 uses all available width
-    ImGui::PlotLines("FPS", &fpsValues[0], fpsValues.size(), 0, nullptr, 0, 120, plotSize);
+    std::vector<float> v(fpsValues.size());
+    copy(fpsValues.cbegin(),fpsValues.cend(), v.begin());
+    ImGui::PlotLines("FPS", &v[0], fpsValues.size(), 0, nullptr, 0, 120, plotSize);
 
     ImGui::NextColumn();
 
@@ -54,10 +57,5 @@ void ShowFPS() {
 
     ImGui::Columns(1);
 
-    
-    if (ImPlot::BeginPlot("My Plot")) {
-        ImPlot::PlotBars("My Bar Plot", &fpsValues[0], fpsValues.size());
-        ImPlot::PlotLine("My Line Plot", &fpsValues[0], fpsValues.size());
-        ImPlot::EndPlot();
-    }
+    ImGui::Checkbox("Rasterizer", &scene.DRAW_RASTERIZE);
 }

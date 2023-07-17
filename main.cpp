@@ -838,9 +838,8 @@ private:
 		//// record draw 
 		vkResetCommandBuffer( commandBuffers[currentFrame], 0 );
 
-#if !defined DRAW_RASTERIZE
-		vulkanite_raytrace::updateUniformBuffersRaytrace( frameIndex );
-#endif
+		if(!scene.DRAW_RASTERIZE)
+			vulkanite_raytrace::updateUniformBuffersRaytrace( frameIndex );
 
 		// Imgui Rendering
 		ImGui::Render();

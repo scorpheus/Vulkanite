@@ -5,8 +5,6 @@
 #include "loader.h"
 #include "VulkanBuffer.h"
 
-//#define DRAW_RASTERIZE
-
 struct ImDrawData;
 
 struct StorageImage;
@@ -33,6 +31,8 @@ struct UniformBufferObjectMotionVector {
 
 struct SceneVulkanite {
 	textureVulkanite envMap;
+		
+	bool DRAW_RASTERIZE;
 
 	std::vector<objectVulkanite> roots;
 
@@ -45,28 +45,25 @@ struct SceneVulkanite {
 	std::vector<std::shared_ptr<textureVulkanite>> textureCacheSequential;
 	std::map<uint32_t, std::shared_ptr<primMeshVulkanite>> primsMeshCache;
 	std::map<uint32_t, std::shared_ptr<matVulkanite>> materialsCache;
-	
-	std::vector<StorageImage> storageImagesRaytrace;
-	std::vector<StorageImage> storageImagesMotionVector, storageImagesDepth;
+
+	std::vector<StorageImage> storageImagesRaytrace, storageImagesMotionVector;
+	std::vector<StorageImage> storageImagesDepth, storageImagesDepthMotionVector;
 	std::vector<StorageImage> storageImagesDLSS;
-		
-	std::vector<VkFramebuffer> rasterizerFramebuffers, imguiFramebuffers;
-	VkRenderPass renderPass;
+
+	std::vector<VkFramebuffer> rasterizerFramebuffers, imguiFramebuffers, MotionVectorFramebuffers;
+	VkRenderPass renderPass, renderPassMotionVector;
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout, pipelineLayoutAlpha;
 	VkPipeline graphicsPipeline, graphicsPipelineAlpha;
-	
-#ifdef DRAW_RASTERIZE
+
 	std::vector<StorageImage> storageImagesRasterize;
 	UBOParams uboParams;
 	VkBuffer uboParamsBuffer;
 
 	std::vector<VkBuffer> uniformParamsBuffers;
 	std::vector<VkDeviceMemory> uniformParamsBuffersMemory;
-	std::vector<void *> uniformParamsBuffersMapped;
-
-#endif
+	std::vector<void*> uniformParamsBuffersMapped;
 
 };
 
@@ -75,8 +72,8 @@ extern bool USE_DLSS;
 
 void loadScene();
 void initScene();
-void updateScene(float deltaTime);
-void drawScene(VkCommandBuffer commandBuffer, uint32_t currentFrame);
-void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, ImDrawData* draw_data);
+void updateScene( float deltaTime );
+void drawScene( VkCommandBuffer commandBuffer, uint32_t currentFrame );
+void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t imageIndex, ImDrawData* draw_data );
 void destroyScene();
 void deleteModel();

@@ -30,6 +30,6 @@ Build USD:
 in x64 native tools command prompt for vs 2022
 cd extern/USD
 git clone https://github.com/PixarAnimationStudios/OpenUSD.git
-C:\anaconda3\python USD\build_scripts\build_usd.py --build-variant release --generator "Visual Studio 17 2022" --toolset v143 --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --materialx --ptex --build-monolithic USD_build_Release
-C:\anaconda3\python USD\build_scripts\build_usd.py --build-variant debug --generator "Visual Studio 17 2022" --toolset v143 --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --materialx --ptex --build-monolithic USD_build_Debug
+C:\anaconda3\python build_scripts\build_usd.py --build-variant release --generator "Visual Studio 17 2022" --toolset v143 --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --materialx --ptex --build-monolithic build_Release
+C:\anaconda3\python build_scripts\build_usd.py --build-variant debug --generator "Visual Studio 17 2022" --toolset v143 --no-python --no-tools --no-tutorials --no-docs --no-tests --no-examples --no-usdview --imaging --materialx --ptex --build-monolithic build_Debug
  

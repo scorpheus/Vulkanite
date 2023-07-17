@@ -12,6 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+# Tell find_package() to first search using Config mode before falling back to Module mode (for conan)
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
@@ -53,9 +55,10 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 conan_cmake_configure(REQUIRES glfw/3.3.8 glm/cci.20220420 stb/cci.20210910 tinyobjloader/2.0.0-rc10 fmt/9.1.0 spdlog/1.11.0 nlohmann_json/3.11.2 tinygltf/2.5.0 mikktspace/cci.20200325 draco/1.5.5 ktx/4.0.0 libbasisu/1.15.0 imgui/1.89.4 implot/0.14
 					GENERATORS cmake_find_package_multi
-                    OPTIONS spdlog:wchar_support=True)
+                    OPTIONS 
+					spdlog:wchar_support=True)
 					
-foreach(TYPE Debug RelWithDebInfo Release)
+foreach(TYPE Debug Release) #RelWithDebInfo)
 	conan_cmake_autodetect(settings BUILD_TYPE ${TYPE})
 	set(CONAN_RUNTIME MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:Debug>)
 	set(CONAN_SETTINGS ${settings} compiler.runtime=${CONAN_RUNTIME})
@@ -81,9 +84,6 @@ find_package(libbasisu REQUIRED)
 find_package(imgui REQUIRED)
 find_package(implot REQUIRED)
 
-
-link_libraries(glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu imgui::imgui implot::implot)
-
 # shaders
 include(cmake/utilities.cmake)
 #--------------------------------------------------------------------------------------------------
@@ -100,6 +100,7 @@ LIST(APPEND SOURCE_FILES extern/imgui/imgui_impl_glfw.cpp extern/imgui/imgui_imp
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
+target_link_libraries(Vulkanite PUBLIC glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu imgui::imgui implot::implot)
 
 find_package(Vulkan)
 if(Vulkan_FOUND)
@@ -117,7 +118,7 @@ if(WIN32)
 endif()
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! USD
-set(USD_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/usd" CACHE PATH "Path to the USD build directory")
+set(USD_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenUSD" CACHE PATH "Path to the USD build directory")
 
 if (WIN32)
     # ".lib" on Windows
@@ -137,7 +138,7 @@ foreach(TYPE Release )#RelWithDebInfo Debug)
 	endif()
 
 	# look for usd project
-	set(pxr_DIR "${USD_SDK_DIR}/USD_build_${CONFIG_TYPE}")
+	set(pxr_DIR "${USD_SDK_DIR}/build_${CONFIG_TYPE}")
 
 #	find_package(Boost PATHS pxr_DIR) # headers only
 
@@ -148,7 +149,7 @@ foreach(TYPE Release )#RelWithDebInfo Debug)
 								${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX})
 
 	target_include_directories(Vulkanite PUBLIC	${pxr_DIR}/include
-												${pxr_DIR}/include/boost-1_78)
+													${pxr_DIR}/include/boost-1_78)
 												#	$<$<CONFIG:${CONFIG_TYPE}>:${Boost_INCLUDE_DIRS}>)
 
 	install(DIRECTORY "${pxr_DIR}/lib/"
@@ -244,4 +245,5 @@ endif()
 
 # add the spherical harmonics extractor project
 add_subdirectory("SphericalHarmonicsExtractor")
+target_link_libraries(spherical_harmonics_extractor PUBLIC glm::glm stb::stb fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json)
 

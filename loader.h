@@ -86,12 +86,12 @@ struct objectVulkanite {
 	// Vulkan
 	uint32_t primMesh{std::numeric_limits<uint32_t>::max()};
 
-	VkDescriptorPool descriptorPool;
-	std::vector<VkDescriptorSet> descriptorSets;
+	VkDescriptorPool descriptorPool, descriptorPoolMotionVector;
+	std::vector<VkDescriptorSet> descriptorSets, descriptorSetsMotionVector;
 
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::vector<void*> uniformBuffersMapped;
+	std::vector<VkBuffer> uniformBuffers, uniformBuffersMotionVector;
+	std::vector<VkDeviceMemory> uniformBuffersMemory, uniformBuffersMemoryMotionVector;
+	std::vector<void*> uniformBuffersMapped, uniformBuffersMappedMotionVector;
 };
 
 std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath);
