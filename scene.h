@@ -30,6 +30,9 @@ struct UniformBufferObjectMotionVector {
 };
 
 struct SceneVulkanite {
+	float cameraNear, cameraFar, cameraFov;
+	double deltaTime;
+
 	textureVulkanite envMap;
 		
 	bool DRAW_RASTERIZE;
@@ -48,9 +51,9 @@ struct SceneVulkanite {
 
 	std::vector<StorageImage> storageImagesRaytrace, storageImagesMotionVector;
 	std::vector<StorageImage> storageImagesDepth, storageImagesDepthMotionVector;
-	std::vector<StorageImage> storageImagesDLSS;
+	std::vector<StorageImage> storageImagesDLSS, storageImagesFSR2;
 
-	std::vector<VkFramebuffer> rasterizerFramebuffers, imguiFramebuffers, MotionVectorFramebuffers;
+	std::vector<VkFramebuffer> rasterizerFramebuffers, raytraceFramebuffers, fsr2Framebuffers, MotionVectorFramebuffers;
 	VkRenderPass renderPass, renderPassMotionVector;
 
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -64,11 +67,11 @@ struct SceneVulkanite {
 	std::vector<VkBuffer> uniformParamsBuffers;
 	std::vector<VkDeviceMemory> uniformParamsBuffersMemory;
 	std::vector<void*> uniformParamsBuffersMapped;
-
 };
 
 extern SceneVulkanite scene;
 extern bool USE_DLSS;
+extern bool USE_FSR2;
 
 void loadScene();
 void initScene();

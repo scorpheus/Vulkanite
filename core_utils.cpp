@@ -6,7 +6,7 @@
 
 #include "VulkanBuffer.h"
 
-float DLSS_SCALE = 0.75;
+float UPSCALE_SCALE = 0.5;
 uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;

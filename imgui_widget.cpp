@@ -58,4 +58,6 @@ void ShowFPS() {
     ImGui::Columns(1);
 
     ImGui::Checkbox("Rasterizer", &scene.DRAW_RASTERIZE);
+    ImGui::Checkbox("FSR2", &USE_FSR2);
+    ImGui::SliderFloat("Scale", &UPSCALE_SCALE, 0.5f, 1.0f);
 }

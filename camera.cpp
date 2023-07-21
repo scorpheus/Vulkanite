@@ -1,5 +1,6 @@
 #include "camera.h"
 
+#include <imgui.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -47,6 +48,9 @@ void updateJitter(glm::vec2 &jitterCam, uint32_t frameIndex) {
 }
 
 void updateCamera(GLFWwindow *window, float deltaTime) {
+	if(ImGui::GetIO().WantCaptureMouse)
+		return;
+
 	const glm::mat4 inverted = glm::inverse(camWorld);
 	const glm::vec3 forward = normalize(glm::vec3(inverted[2]));
 	const glm::vec3 right = normalize(glm::vec3(inverted[0]));

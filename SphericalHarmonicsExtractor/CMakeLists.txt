@@ -2,6 +2,6 @@ add_executable(spherical_harmonics_extractor spherical_harmonics_extractor.cpp)
 
 target_include_directories(spherical_harmonics_extractor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(spherical_harmonics_extractor PROPERTIES FOLDER "tools")
-set_property(TARGET spherical_harmonics_extractor PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set_property(TARGET spherical_harmonics_extractor PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 install(TARGETS spherical_harmonics_extractor LIBRARY DESTINATION spherical_harmonics_extractor RUNTIME DESTINATION spherical_harmonics_extractor COMPONENT spherical_harmonics_extractor)

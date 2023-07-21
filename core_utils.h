@@ -28,7 +28,7 @@ struct Buffer;
 
 const uint32_t WIDTH = 1024;
 const uint32_t HEIGHT = 768;
-extern float DLSS_SCALE;
+extern float UPSCALE_SCALE;
 
 extern uint32_t MAX_FRAMES_IN_FLIGHT;
 

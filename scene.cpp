@@ -8,6 +8,7 @@
 #include "imgui_impl_vulkan.h"
 
 #include "dlss.h"
+#include "fsr2.h"
 #include "rasterizer.h"
 #include "raytrace.h"
 
@@ -20,7 +21,8 @@ namespace fs = std::filesystem;
 CMRC_DECLARE( gltf_rc );
 
 SceneVulkanite scene;
-bool USE_DLSS = true;
+bool USE_DLSS = false;
+bool USE_FSR2 = true;
 
 void loadScene() {
 	scene.envMap.name = "envMap";
@@ -54,15 +56,17 @@ void loadScene() {
 
 void initScene() {
 	scene.DRAW_RASTERIZE = true;
+	scene.cameraNear = 0.001f; scene.cameraFar = 10000.f; scene.cameraFov = glm::radians( 45.0f ); scene.deltaTime = 0.0;
+
 	// dlss
 	USE_DLSS = initDLSS();
-	if( !USE_DLSS )
-		DLSS_SCALE = 1.f;
+	//if( !USE_DLSS )
+	//	UPSCALE_SCALE = 1.f;
 
 
 	// setup motion pass
 	VkExtent3D extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ), 1 };
-	VkExtent3D extentScale = { static_cast< uint32_t >( swapChainExtent.width * DLSS_SCALE ), static_cast< uint32_t >( swapChainExtent.height * DLSS_SCALE ), 1 };
+	VkExtent3D extentScale = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ), 1 };
 
 	// rasterizer framebuffer
 	createStorageImage( scene.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent );
@@ -75,6 +79,11 @@ void initScene() {
 	createStorageImage( scene.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent );
 	createRenderPass( scene.renderPassMotionVector, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT );
 	createFramebuffers( scene.renderPassMotionVector, scene.MotionVectorFramebuffers, scene.storageImagesMotionVector, scene.storageImagesDepthMotionVector );
+
+	// fsr2
+	USE_FSR2 = initFSR2();
+	if( !USE_FSR2 )
+		UPSCALE_SCALE = 1.f;
 
 	// create 2 graphics pipeline (without/without alpha);
 	createDescriptorSetLayoutMotionVector( scene.descriptorSetLayout );
@@ -90,7 +99,7 @@ void initScene() {
 
 	// setup raytrace
 	createStorageImage( scene.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale );
-	createFramebuffers( scene.renderPass, scene.imguiFramebuffers, scene.storageImagesRaytrace, scene.storageImagesDepth );
+	createFramebuffers( scene.renderPass, scene.raytraceFramebuffers, scene.storageImagesRaytrace, scene.storageImagesDepth );
 
 	vulkanite_raytrace::InitRaytrace();
 
@@ -165,7 +174,7 @@ void drawModel( VkCommandBuffer commandBuffer, uint32_t currentFrame, objectVulk
 		if( scene.DRAW_RASTERIZE ) {
 			updateUniformBuffer( currentFrame, obj, parent_world );
 		} else {
-			if( USE_DLSS )
+			if( USE_DLSS || USE_FSR2 )
 				updateUniformBufferMotionVector( currentFrame, obj, parent_world );
 		}
 
@@ -221,12 +230,12 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = scene.renderPass;
-	if(scene.DRAW_RASTERIZE)
+	if( scene.DRAW_RASTERIZE )
 		renderPassInfo.framebuffer = scene.rasterizerFramebuffers[currentFrame];
 	else
 		renderPassInfo.framebuffer = scene.MotionVectorFramebuffers[currentFrame];
 	renderPassInfo.renderArea.offset = { 0, 0 };
-	renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width * DLSS_SCALE ), static_cast< uint32_t >( swapChainExtent.height * DLSS_SCALE ) };
+	renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ) };
 	renderPassInfo.clearValueCount = static_cast< uint32_t >( clearValues.size() );
 	renderPassInfo.pClearValues = clearValues.data();
 
@@ -235,38 +244,50 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast< float >( swapChainExtent.width * DLSS_SCALE );
-	viewport.height = static_cast< float >( swapChainExtent.height * DLSS_SCALE );
+	viewport.width = static_cast< float >( swapChainExtent.width * UPSCALE_SCALE );
+	viewport.height = static_cast< float >( swapChainExtent.height * UPSCALE_SCALE );
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	vkCmdSetViewport( commandBuffer, 0, 1, &viewport );
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = { static_cast< uint32_t >( swapChainExtent.width * DLSS_SCALE ), static_cast< uint32_t >( swapChainExtent.height * DLSS_SCALE ) };
+	scissor.extent = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ) };
 	vkCmdSetScissor( commandBuffer, 0, 1, &scissor );
 
 	drawScene( commandBuffer, currentFrame );
+	
+	if( !scene.DRAW_RASTERIZE || USE_FSR2) {
+		vkCmdEndRenderPass( commandBuffer ); // end rasterize command buffer
+
+		// add the raytrace framebuffer for imgui drawing
+		renderPassInfo.framebuffer = scene.raytraceFramebuffers[currentFrame];
+		if( USE_FSR2 ) {
+			// add the fsr2 framebuffer for imgui drawing
+			renderPassInfo.framebuffer = scene.fsr2Framebuffers[currentFrame];
+			renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ) };
+		}
+
+		vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
+	}
 
 	// draw raytrace
 	if( !scene.DRAW_RASTERIZE ) {
-		vkCmdEndRenderPass( commandBuffer ); // end rasterize command buffer
-
-		renderPassInfo.framebuffer = scene.imguiFramebuffers[currentFrame];
-		vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
-
 		// raytrace
 		vulkanite_raytrace::buildCommandBuffers( commandBuffer, currentFrame );
 
+		// dlss
 		if( USE_DLSS )
-			// dlss
 			RenderDLSS( commandBuffer, currentFrame, 1.0 );
 	}
+
+	// FSR2
+	if( USE_FSR2 )
+		RenderFSR2( commandBuffer, currentFrame, 1.0 );
 
 	// Imgui
 	// Record dear imgui primitives into command buffer
 	ImGui_ImplVulkan_RenderDrawData( draw_data, commandBuffer );
-
 	vkCmdEndRenderPass( commandBuffer );
 
 
@@ -277,14 +298,14 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	setImageLayout( commandBuffer, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange );
 
 	// Prepare ray tracing output image as transfer source
-	if( scene.DRAW_RASTERIZE ) {
+	if( USE_DLSS )
+		setImageLayout( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
+	else if( USE_FSR2 )
+		setImageLayout( commandBuffer, scene.storageImagesFSR2[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
+	else if( scene.DRAW_RASTERIZE )
 		setImageLayout( commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
-	} else {
-		if( USE_DLSS )
-			setImageLayout( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
-		else
-			setImageLayout( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
-	}
+	else
+		setImageLayout( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, subresourceRange );
 
 	VkImageCopy copyRegion{};
 	copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
@@ -294,28 +315,28 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	// copyRegion.extent = {swapChainExtent.width / 2, swapChainExtent.height, 1};
 	copyRegion.dstOffset = { 0, 0, 0 };
 	copyRegion.extent = { swapChainExtent.width, swapChainExtent.height, 1 };
-	if( scene.DRAW_RASTERIZE ) {
-		vkCmdCopyImage( commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame],
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
-	} else {
-		if( USE_DLSS )
-			vkCmdCopyImage( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
-		else
-			vkCmdCopyImage( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
-	}
+
+	if( USE_DLSS )
+		vkCmdCopyImage( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
+	else if( USE_FSR2 )
+		vkCmdCopyImage( commandBuffer, scene.storageImagesFSR2[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
+	else if( scene.DRAW_RASTERIZE )
+		vkCmdCopyImage( commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
+	else
+		vkCmdCopyImage( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion );
 
 	// Transition swap chain image back for presentation
 	setImageLayout( commandBuffer, swapChainImages[currentFrame], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, subresourceRange );
 
 	// Transition ray tracing output image back to general layout
-	if( scene.DRAW_RASTERIZE ) {
+	if( USE_DLSS )
+		setImageLayout( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
+	else if( USE_FSR2 )
+		setImageLayout( commandBuffer, scene.storageImagesFSR2[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
+	else if( scene.DRAW_RASTERIZE )
 		setImageLayout( commandBuffer, scene.storageImagesRasterize[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
-	} else {
-		if( USE_DLSS )
-			setImageLayout( commandBuffer, scene.storageImagesDLSS[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
-		else
-			setImageLayout( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
-	}
+	else
+		setImageLayout( commandBuffer, scene.storageImagesRaytrace[currentFrame].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, subresourceRange );
 
 	// end command buffer
 	if( vkEndCommandBuffer( commandBuffer ) != VK_SUCCESS ) {
@@ -334,7 +355,7 @@ void destroyScene() {
 
 	for( auto framebuffer : scene.rasterizerFramebuffers )
 		vkDestroyFramebuffer( device, framebuffer, nullptr );
-		
+
 	for( auto framebuffer : scene.MotionVectorFramebuffers )
 		vkDestroyFramebuffer( device, framebuffer, nullptr );
 
@@ -342,6 +363,7 @@ void destroyScene() {
 	deleteStorageImage( scene.storageImagesRasterize );
 	deleteStorageImage( scene.storageImagesRaytrace );
 	deleteStorageImage( scene.storageImagesDLSS );
+	deleteStorageImage( scene.storageImagesFSR2 );
 	deleteStorageImage( scene.storageImagesMotionVector );
 }
 

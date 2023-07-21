@@ -646,7 +646,7 @@ void updateUniformBuffersRaytrace(uint32_t frameIndex) {
 	auto JitterMatrix = glm::mat4(1);
 	JitterMatrix = glm::translate(JitterMatrix, glm::vec3(jitterCam.x, jitterCam.y,0.0f));
 
-	auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width * DLSS_SCALE) / static_cast<float>(swapChainExtent.height * DLSS_SCALE), 0.001f, 10000.f);
+	auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width * UPSCALE_SCALE) / static_cast<float>(swapChainExtent.height * UPSCALE_SCALE), 0.001f, 10000.f);
 	proj[1][1] *= -1;
 	uniformData.projInverse = glm::inverse(proj * JitterMatrix );
 
@@ -703,7 +703,7 @@ void buildCommandBuffers(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
 		Dispatch the ray tracing commands
 	*/
 	VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion, &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, static_cast<uint32_t>(swapChainExtent.width * DLSS_SCALE), static_cast<uint32_t>(swapChainExtent.height * DLSS_SCALE), 1);
+	vkCmdTraceRaysKHR(commandBuffer, &shaderBindingTables.raygen.stridedDeviceAddressRegion, &shaderBindingTables.miss.stridedDeviceAddressRegion, &shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, static_cast<uint32_t>(swapChainExtent.width * UPSCALE_SCALE), static_cast<uint32_t>(swapChainExtent.height * UPSCALE_SCALE), 1);
 	
 }
 }

@@ -93,7 +93,7 @@ public:
 	}
 
 private:
-	double lastTimeFrame = glfwGetTime(), currentTimeFrame, deltaTime;
+	double lastTimeFrame = glfwGetTime(), currentTimeFrame;
 	GLFWwindow* window;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
@@ -801,7 +801,7 @@ private:
 
 	void drawFrame() {
 		currentTimeFrame = glfwGetTime();
-		deltaTime = currentTimeFrame - lastTimeFrame;
+		scene.deltaTime = currentTimeFrame - lastTimeFrame;
 		lastTimeFrame = currentTimeFrame;
 
 		// 
@@ -809,14 +809,14 @@ private:
 		ImGui_ImplVulkan_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-		ImGui::Begin( "Hello, world!" );
+		ImGui::Begin( "Vulkanite" );
 		// draw fps plot
 		ShowFPS();
 
 		// update element
-		updateCamera( window, deltaTime );
+		updateCamera( window, scene.deltaTime );
 		updateJitter( jitterCam, frameIndex );
-		updateScene( deltaTime );
+		updateScene( scene.deltaTime );
 
 		// Imgui end the window
 		ImGui::End();

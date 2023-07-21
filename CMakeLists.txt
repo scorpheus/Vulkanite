@@ -10,8 +10,8 @@ include(GetPrerequisites)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 # Tell find_package() to first search using Config mode before falling back to Module mode (for conan)
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
 
@@ -97,6 +97,7 @@ compile_glsl_directory(
 
 file(GLOB SOURCE_FILES "*.h" "*.cpp")
 LIST(APPEND SOURCE_FILES extern/imgui/imgui_impl_glfw.cpp extern/imgui/imgui_impl_vulkan.cpp)
+LIST(APPEND SOURCE_FILES extern/FSR2/ffx_fsr2.h)
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
@@ -114,7 +115,7 @@ if(WIN32)
 	add_compile_options(/permissive- /std:c++latest)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Vulkanite)
 	set_target_properties(Vulkanite PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Vulkanite")
-	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:DLL>")
+	set_property(TARGET Vulkanite PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! USD
@@ -212,16 +213,21 @@ endif()
 
 cmrc_add_resource_library(gltf-resources NAMESPACE gltf_rc ${LIST_RESOURCES})
 
-set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:DLL>")
+set_property(TARGET gltf-resources PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 target_link_libraries(Vulkanite PUBLIC gltf-resources)
 target_compile_definitions(Vulkanite PUBLIC ENVMAP="${ENVMAP}" MODEL_GLTF_PATH="${MODEL_GLTF_PATH}")
 target_compile_options(Vulkanite PRIVATE $<$<CONFIG:Release>:/Zi>)
 set_target_properties(Vulkanite PROPERTIES LINK_FLAGS_RELEASE "/DEBUG")
 
 # dlss
-target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/x86_64)
-target_link_libraries(Vulkanite PUBLIC debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
-target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
+#target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/x86_64)
+#target_link_libraries(Vulkanite PUBLIC debug nvsdk_ngx_s_dbg optimized nvsdk_ngx_s)
+#target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
+
+# FSR2
+target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
+target_link_libraries(Vulkanite PUBLIC ffx_fsr2_api_vk_x64 ffx_fsr2_api_x64)
+target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
 
 # imgui backend
 target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui)
@@ -231,11 +237,11 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix"
 
 # install binary, runtime dependencies and data dependencies
 install(TARGETS Vulkanite ARCHIVE DESTINATION Vulkanite RUNTIME DESTINATION Vulkanite LIBRARY DESTINATION Vulkanite COMPONENT Vulkanite)
-install(DIRECTORY extern/DLSS/lib/Windows_x86_64/rel/ DESTINATION Vulkanite COMPONENT Vulkanite)
-add_custom_command(TARGET Vulkanite POST_BUILD 
-               COMMAND ${CMAKE_COMMAND} -E copy_if_different
-               "${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll"
-                $<TARGET_FILE_DIR:Vulkanite>)
+#install(DIRECTORY extern/DLSS/lib/Windows_x86_64/rel/ DESTINATION Vulkanite COMPONENT Vulkanite)
+#add_custom_command(TARGET Vulkanite POST_BUILD 
+ #              COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#               "${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll"
+#                $<TARGET_FILE_DIR:Vulkanite>)
 
 # if not include GLTF, copy near the exe
 if(NOT INCLUDE_MODEL)

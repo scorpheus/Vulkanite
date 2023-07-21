@@ -590,8 +590,8 @@ void createFramebuffers( const VkRenderPass& renderPass, std::vector<VkFramebuff
 		framebufferInfo.renderPass = renderPass;
 		framebufferInfo.attachmentCount = static_cast< uint32_t >( attachments.size() );
 		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = swapChainExtent.width * DLSS_SCALE;
-		framebufferInfo.height = swapChainExtent.height * DLSS_SCALE;
+		framebufferInfo.width = swapChainExtent.width * UPSCALE_SCALE;
+		framebufferInfo.height = swapChainExtent.height * UPSCALE_SCALE;
 		framebufferInfo.layers = 1;
 
 		if( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &framebuffers[i] ) != VK_SUCCESS ) {
@@ -622,7 +622,7 @@ void updateUniformBuffer( uint32_t currentFrame, const objectVulkanite& obj, con
 
 	//
 	UniformBufferObject ubo{};
-	ubo.proj = glm::perspective( glm::radians( 45.0f ), swapChainExtent.width / ( float )swapChainExtent.height, 0.001f, 10000.f );
+	ubo.proj = glm::perspective( scene.cameraFov, swapChainExtent.width / ( float )swapChainExtent.height, scene.cameraNear, scene.cameraFar);
 	ubo.proj[1][1] *= -1;
 
 	ubo.model = parent_world * obj.world;
@@ -638,7 +638,7 @@ void updateUniformBufferMotionVector( uint32_t currentFrame, objectVulkanite& ob
 	auto JitterMatrix = glm::mat4( 1 );
 	JitterMatrix = glm::translate( JitterMatrix, glm::vec3( jitterCam.x, jitterCam.y, 0.0f ) );
 
-	auto proj = glm::perspective( glm::radians( 45.0f ), swapChainExtent.width / ( float )swapChainExtent.height, 0.001f, 10000.f );
+	auto proj = glm::perspective( scene.cameraFov, swapChainExtent.width / ( float )swapChainExtent.height, scene.cameraNear, scene.cameraFar);
 	proj[1][1] *= -1;
 
 	ubo.modelViewProjectionMat = proj * camWorld * parent_world * obj.world;
