@@ -4,6 +4,3 @@
 [submodule "extern/OpenUSD"]
 	path = extern/OpenUSD
 	url = https://github.com/PixarAnimationStudios/OpenUSD.git
-[submodule "extern/MaterialX"]
-	path = extern/MaterialX
-	url = https://github.com/AcademySoftwareFoundation/MaterialX.git
