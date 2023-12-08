@@ -19,6 +19,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR})
 
+option(ACTIVATE_FSR2 "FSR2" ON)
+option(ACTIVATE_IMGUI "IMGUI" ON)
+
 # conan
 include(conan.cmake)
 
@@ -81,7 +84,9 @@ find_package(mikktspace REQUIRED)
 find_package(draco REQUIRED)
 find_package(ktx REQUIRED)
 find_package(libbasisu REQUIRED)
+if(ACTIVATE_IMGUI)
 find_package(imgui REQUIRED)
+endif()
 find_package(implot REQUIRED)
 
 # shaders
@@ -96,12 +101,18 @@ compile_glsl_directory(
 )
 
 file(GLOB SOURCE_FILES "*.h" "*.cpp")
+if(ACTIVATE_IMGUI)
 LIST(APPEND SOURCE_FILES extern/imgui/imgui_impl_glfw.cpp extern/imgui/imgui_impl_vulkan.cpp)
+endif()
 LIST(APPEND SOURCE_FILES extern/FSR2/ffx_fsr2.h)
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
-target_link_libraries(Vulkanite PUBLIC glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu imgui::imgui implot::implot)
+
+target_link_libraries(Vulkanite PUBLIC glfw::glfw glm::glm stb::stb tinyobjloader::tinyobjloader fmt::fmt spdlog::spdlog nlohmann_json::nlohmann_json TinyGLTF::TinyGLTF mikktspace::mikktspace draco::draco KTX::KTX libbasisu::libbasisu)
+if(ACTIVATE_IMGUI)
+    target_link_libraries(Vulkanite PUBLIC imgui::imgui implot::implot)
+endif()
 
 find_package(Vulkan)
 if(Vulkan_FOUND)
@@ -131,7 +142,7 @@ else ()
         CACHE STRING "Extension of USD libraries")
 endif ()
 
-foreach(TYPE Release )#RelWithDebInfo Debug)
+foreach(TYPE Release Debug)#RelWithDebInfo)
 
 	set(CONFIG_TYPE ${TYPE})
 	if(${TYPE} STREQUAL "RelWithDebInfo")
@@ -144,23 +155,41 @@ foreach(TYPE Release )#RelWithDebInfo Debug)
 #	find_package(Boost PATHS pxr_DIR) # headers only
 
 	target_link_libraries(Vulkanite PUBLIC  
-								${pxr_DIR}/lib/tbb_debug${USD_LIB_SUFFIX}
-								${pxr_DIR}/lib/tbb${USD_LIB_SUFFIX}
-								${pxr_DIR}/lib/usd_ms${USD_LIB_SUFFIX}
-								${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX})
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/tbb_debug${USD_LIB_SUFFIX}> 
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/tbb${USD_LIB_SUFFIX}> 
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/usd_ms${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/Ptex${USD_LIB_SUFFIX}>
+								# add materialX
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXCore${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXFormat${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXGenGlsl${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXGenMdl${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXGenOsl${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXGenShader${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXRender${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXRenderGlsl${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXRenderHw${USD_LIB_SUFFIX}>
+								$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/lib/MaterialXRenderOsl${USD_LIB_SUFFIX}>
+								)
 
-	target_include_directories(Vulkanite PUBLIC	${pxr_DIR}/include
-													${pxr_DIR}/include/boost-1_78)
+	target_include_directories(Vulkanite PUBLIC	$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/include> 
+													$<$<CONFIG:${CONFIG_TYPE}>:${pxr_DIR}/include/boost-1_78>)
 												#	$<$<CONFIG:${CONFIG_TYPE}>:${Boost_INCLUDE_DIRS}>)
 
 	install(DIRECTORY "${pxr_DIR}/lib/"
+ 			CONFIGURATIONS ${CONFIG_TYPE}
  	 		DESTINATION Vulkanite COMPONENT Vulkanite
  			FILES_MATCHING PATTERN "*.dll")
 	install(DIRECTORY "${pxr_DIR}/lib/usd"
+ 			CONFIGURATIONS ${CONFIG_TYPE}
  			DESTINATION Vulkanite COMPONENT Vulkanite)
 	install(DIRECTORY "${pxr_DIR}/bin/"
+ 			CONFIGURATIONS ${CONFIG_TYPE}
  			DESTINATION Vulkanite COMPONENT Vulkanite
  			FILES_MATCHING PATTERN "*.dll")
+	install(DIRECTORY "${pxr_DIR}/libraries/"
+ 			CONFIGURATIONS ${CONFIG_TYPE}
+ 			DESTINATION Vulkanite/libraries COMPONENT Vulkanite)
 endforeach()
 
 # usd importer install
@@ -225,12 +254,47 @@ set_target_properties(Vulkanite PROPERTIES LINK_FLAGS_RELEASE "/DEBUG")
 #target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/DLSS/include)
 
 # FSR2
-target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
-target_link_libraries(Vulkanite PUBLIC ffx_fsr2_api_vk_x64 ffx_fsr2_api_x64)
-target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
+if(ACTIVATE_FSR2)
+	target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
+	target_link_libraries(Vulkanite PUBLIC ffx_fsr2_api_vk_x64 ffx_fsr2_api_x64)
+	target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
+	target_compile_definitions(Vulkanite PUBLIC ACTIVATE_FSR2=1)
+endif()
+
+# # MaterialX
+# set(target_list "" CACHE INTERNAL "target_list")
+# function(add_library name)
+#     message("Adding library ${name}")
+#     set(target_list ${target_list} ${name} CACHE INTERNAL "target_list")
+#     _add_library(${name} ${ARGN})
+# endfunction()
+# set(MATERIALX_BUILD_SHARED_LIBS OFF)
+# set(MATERIALX_BUILD_TESTS OFF)
+# set(MATERIALX_BUILD_GEN_OSL OFF)
+# set(MATERIALX_BUILD_GEN_MDL OFF)
+# set(MATERIALX_BUILD_GEN_MSL OFF)
+# set(MATERIALX_PYTHON_LTO OFF)
+# set(MATERIALX_INSTALL_PYTHON OFF)
+# set(MATERIALX_TEST_RENDER OFF)
+# set(MATERIALX_OSL_LEGACY_CLOSURES OFF)
+# set(MATERIALX_BUILD_RENDER OFF)
+
+# add_subdirectory("extern/MaterialX")
+
+# #target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/MaterialX/lib)
+# target_link_libraries(Vulkanite PUBLIC MaterialXCore MaterialXFormat MaterialXGenGlsl MaterialXGenShader)# MaterialXFormat MaterialXGenGlsl MaterialXGenMdl MaterialXGenMsl MaterialXGenOsl MaterialXGenShader MaterialXRender MaterialXRenderGlsl MaterialXRenderHw MaterialXRenderOsl)
+# #target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/MaterialX/include)
+# set_target_properties(${target_list} PROPERTIES FOLDER "MaterialX")
+
+# set(MaterialX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/MaterialX/lib/cmake/MaterialX)
+# find_package(MaterialX)
+# target_link_libraries(Vulkanite PUBLIC MaterialXCore MaterialXFormat MaterialXGenGlsl MaterialXGenShader)
 
 # imgui backend
-target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui)
+if(ACTIVATE_IMGUI)
+	target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui)
+	target_compile_definitions(Vulkanite PUBLIC ACTIVATE_IMGUI=1)
+endif()
 
 # modify where cmake install directory
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Cmake prefix" FORCE)

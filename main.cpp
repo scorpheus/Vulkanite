@@ -16,22 +16,26 @@
 #include <vector>
 #include <chrono>
 
+#ifdef ACTIVATE_IMGUI
 #include <imgui.h>
 #include <implot.h>
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#endif
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <spdlog/spdlog.h>
 
+#include "materialx.h"
 #include "camera.h"
 #include "dlss.h"
 #include "rasterizer.h"
 #include "raytrace.h"
 #include "scene.h"
 #include "imgui_widget.h"
+#include "fsr2.h"
 
 const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
 std::vector<const char*> deviceExtensions = {
@@ -103,9 +107,11 @@ private:
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkFence> inFlightFences;
-
+	
+#ifdef ACTIVATE_IMGUI
 	VkDescriptorPool         imguiDescriptorPool{ VK_NULL_HANDLE };
 	ImGui_ImplVulkanH_Window imguiMainWindowData;
+#endif
 
 	bool framebufferResized = false;
 
@@ -143,8 +149,10 @@ private:
 		createSyncObjects();
 
 		initScene();
-
+		
+#ifdef ACTIVATE_IMGUI
 		initImgui();
+#endif
 	}
 
 	void mainLoop() {
@@ -265,21 +273,22 @@ private:
 		if( enableValidationLayers ) {
 			extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 		}
-
+				
 		// DLSS get extensions needed
-		unsigned int OutInstanceExtCount;
-		const char** OutInstanceExts;
-		unsigned int OutDeviceExtCount;
-		const char** OutDeviceExts;
-		getExtensionsNeeded( &OutInstanceExtCount, &OutInstanceExts, &OutDeviceExtCount, &OutDeviceExts );
-		std::vector<const char*> extensionsInstanceDLSS( OutInstanceExts, OutInstanceExts + OutInstanceExtCount );
-		std::vector<const char*> extensionsDeviceDLSS( OutDeviceExts, OutDeviceExts + OutDeviceExtCount );
-		// be sure to remove "VK_EXT_buffer_device_address" because we use "VK_KHR_buffer_device_address"
-		std::erase_if( extensionsDeviceDLSS, []( const char* a ) { return std::strcmp( a, "VK_EXT_buffer_device_address" ) == 0; } );
+		if( USE_DLSS ) {
+			unsigned int OutInstanceExtCount;
+			const char** OutInstanceExts;
+			unsigned int OutDeviceExtCount;
+			const char** OutDeviceExts;
+			getExtensionsNeeded( &OutInstanceExtCount, &OutInstanceExts, &OutDeviceExtCount, &OutDeviceExts );
+			std::vector<const char*> extensionsInstanceDLSS( OutInstanceExts, OutInstanceExts + OutInstanceExtCount );
+			std::vector<const char*> extensionsDeviceDLSS( OutDeviceExts, OutDeviceExts + OutDeviceExtCount );
+			// be sure to remove "VK_EXT_buffer_device_address" because we use "VK_KHR_buffer_device_address"
+			std::erase_if( extensionsDeviceDLSS, []( const char* a ) { return std::strcmp( a, "VK_EXT_buffer_device_address" ) == 0; } );
 
-		extensions.insert( extensions.end(), extensionsInstanceDLSS.begin(), extensionsInstanceDLSS.end() );
-		deviceExtensions.insert( deviceExtensions.end(), extensionsDeviceDLSS.begin(), extensionsDeviceDLSS.end() );
-
+			extensions.insert( extensions.end(), extensionsInstanceDLSS.begin(), extensionsInstanceDLSS.end() );
+			deviceExtensions.insert( deviceExtensions.end(), extensionsDeviceDLSS.begin(), extensionsDeviceDLSS.end() );
+		}
 		return extensions;
 	}
 
@@ -529,10 +538,11 @@ private:
 		createSwapChain();
 		createImageViews();
 		createColorResources();
-
-		ImGui_ImplVulkan_SetMinImageCount( MAX_FRAMES_IN_FLIGHT );
-		QueueFamilyIndices indices = findQueueFamilies( physicalDevice );
-		ImGui_ImplVulkanH_CreateOrResizeWindow( instance, physicalDevice, device, &imguiMainWindowData, indices.graphicsFamily.value(), nullptr, width, height, MAX_FRAMES_IN_FLIGHT );
+		
+		createSceneFramebuffer();
+		vulkanite_raytrace::createDescriptorSets();
+		
+		initFSR2();
 	}
 
 	void createSwapChain() {
@@ -592,7 +602,7 @@ private:
 
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat( const std::vector<VkSurfaceFormatKHR>& availableFormats ) {
 		for( const auto& availableFormat : availableFormats ) {
-			if( availableFormat.format == VK_FORMAT_R8G8B8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ) {
+			if( availableFormat.format == VK_FORMAT_R8G8B8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ) {
 				return availableFormat;
 			}
 		}
@@ -702,6 +712,7 @@ private:
 		}
 	}
 
+#ifdef ACTIVATE_IMGUI
 	void initImgui() {
 		// Create Framebuffers
 		int w, h;
@@ -798,18 +809,21 @@ private:
 			ImGui_ImplVulkan_DestroyFontUploadObjects();
 		}
 	}
-
+#endif
+#pragma optimize("", off)
 	void drawFrame() {
 		currentTimeFrame = glfwGetTime();
 		scene.deltaTime = currentTimeFrame - lastTimeFrame;
 		lastTimeFrame = currentTimeFrame;
-
+		
+#ifdef ACTIVATE_IMGUI
 		// 
 		// Start the Dear ImGui frame
 		ImGui_ImplVulkan_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 		ImGui::Begin( "Vulkanite" );
+#endif
 		// draw fps plot
 		ShowFPS();
 
@@ -817,9 +831,11 @@ private:
 		updateCamera( window, scene.deltaTime );
 		updateJitter( jitterCam, frameIndex );
 		updateScene( scene.deltaTime );
-
+		
+#ifdef ACTIVATE_IMGUI
 		// Imgui end the window
 		ImGui::End();
+#endif
 
 		vkWaitForFences( device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX );
 
@@ -840,13 +856,19 @@ private:
 
 		if(!scene.DRAW_RASTERIZE)
 			vulkanite_raytrace::updateUniformBuffersRaytrace( frameIndex );
-
+			
+#ifdef ACTIVATE_IMGUI
 		// Imgui Rendering
 		ImGui::Render();
 		ImDrawData* draw_data = ImGui::GetDrawData();
+#endif
 
 		// scene rendring
+#ifdef ACTIVATE_IMGUI
 		recordCommandBuffer( commandBuffers[currentFrame], currentFrame, draw_data );
+#else
+		recordCommandBuffer( commandBuffers[currentFrame], currentFrame );
+#endif
 
 		// Submit
 		VkSubmitInfo submitInfo{};
@@ -895,7 +917,6 @@ private:
 		frameIndex++;
 	}
 };
-
 int main() {
 	//#ifdef _DEBUG
 	spdlog::set_level( spdlog::level::debug );
@@ -905,6 +926,10 @@ int main() {
 	spdlog::info( "Welcome to Vulkanite!" );
 
 	VulkaniteApplication app;
+
+
+	//generateGlsl("F:\\Projets_Perso\\Vulkanite\\Vulkanite\\models\\standard_surface_chess_set.mtlx", "F:\\Projets_Perso\\Vulkanite\\Vulkanite\\models\\standard_surface_chess_set\\");
+
 
 	//	try {
 	app.run();

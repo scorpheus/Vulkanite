@@ -75,8 +75,13 @@ extern bool USE_FSR2;
 
 void loadScene();
 void initScene();
+void createSceneFramebuffer();
 void updateScene( float deltaTime );
 void drawScene( VkCommandBuffer commandBuffer, uint32_t currentFrame );
+#ifdef ACTIVATE_IMGUI
 void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t imageIndex, ImDrawData* draw_data );
+#else
+void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t imageIndex );
+#endif
 void destroyScene();
 void deleteModel();

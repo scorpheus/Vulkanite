@@ -4,8 +4,10 @@
 #include <functional>
 #include <array>
 
+#ifdef ACTIVATE_IMGUI
 #include <imgui.h>
 #include "imgui_impl_vulkan.h"
+#endif
 
 #include "dlss.h"
 #include "fsr2.h"
@@ -38,9 +40,13 @@ void loadScene() {
 	//else
 	//	scene.roots = loadSceneUSD(MODEL_GLTF_PATH);
 
+	
+	//std::string scenePath("models/abeautifulgame_draco.glb");
+	std::string scenePath("models/BoxTextured.glb");
+	
 //	std::string scenePath("models/simple_texture_cube.usda");
 //	std::string scenePath("models/pion_chess.usda");
-	std::string scenePath( "models/abeautifulgame_draco.glb" );
+//	std::string scenePath( "models/RockyLevel.usdc" );
 	//std::string scenePath("models/2_tower.usda");
 
 //	std::string scenePath("models/Ship_in_a_bottle.usdz");
@@ -63,22 +69,7 @@ void initScene() {
 	//if( !USE_DLSS )
 	//	UPSCALE_SCALE = 1.f;
 
-
-	// setup motion pass
-	VkExtent3D extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ), 1 };
-	VkExtent3D extentScale = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ), 1 };
-
-	// rasterizer framebuffer
-	createStorageImage( scene.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent );
-	createStorageImage( scene.storageImagesRasterize, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent );
-	createRenderPass( scene.renderPass, swapChainImageFormat, findDepthFormat(), msaaSamples );
-	createFramebuffers( scene.renderPass, scene.rasterizerFramebuffers, scene.storageImagesRasterize, scene.storageImagesDepth );
-
-	// motion vector frame buffer
-	createStorageImage( scene.storageImagesDepthMotionVector, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent );
-	createStorageImage( scene.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent );
-	createRenderPass( scene.renderPassMotionVector, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT );
-	createFramebuffers( scene.renderPassMotionVector, scene.MotionVectorFramebuffers, scene.storageImagesMotionVector, scene.storageImagesDepthMotionVector );
+	createSceneFramebuffer();
 
 	// fsr2
 	USE_FSR2 = initFSR2();
@@ -96,10 +87,6 @@ void initScene() {
 
 	// load
 	loadScene();
-
-	// setup raytrace
-	createStorageImage( scene.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale );
-	createFramebuffers( scene.renderPass, scene.raytraceFramebuffers, scene.storageImagesRaytrace, scene.storageImagesDepth );
 
 	vulkanite_raytrace::InitRaytrace();
 
@@ -131,6 +118,28 @@ void initScene() {
 	vulkanite_raytrace::createRayTracingPipeline();
 	vulkanite_raytrace::createShaderBindingTables();
 	vulkanite_raytrace::createDescriptorSets();
+}
+
+void createSceneFramebuffer(){
+	// setup motion pass
+	VkExtent3D extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ), 1 };
+	VkExtent3D extentScale = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ), 1 };
+
+	// rasterizer framebuffer
+	createStorageImage( scene.storageImagesDepth, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent );
+	createStorageImage( scene.storageImagesRasterize, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extent );
+	createRenderPass( scene.renderPass, swapChainImageFormat, findDepthFormat(), msaaSamples );
+	createFramebuffers( scene.renderPass, scene.rasterizerFramebuffers, scene.storageImagesRasterize, scene.storageImagesDepth );
+
+	// motion vector frame buffer
+	createStorageImage( scene.storageImagesDepthMotionVector, findDepthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, extent );
+	createStorageImage( scene.storageImagesMotionVector, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, extent );
+	createRenderPass( scene.renderPassMotionVector, VK_FORMAT_R32G32_SFLOAT, findDepthFormat(), VK_SAMPLE_COUNT_1_BIT );
+	createFramebuffers( scene.renderPassMotionVector, scene.MotionVectorFramebuffers, scene.storageImagesMotionVector, scene.storageImagesDepthMotionVector );
+
+	// setup raytrace
+	createStorageImage( scene.storageImagesRaytrace, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, extentScale );
+	createFramebuffers( scene.renderPass, scene.raytraceFramebuffers, scene.storageImagesRaytrace, scene.storageImagesDepth );
 }
 
 void updateScene( float deltaTime ) {
@@ -212,7 +221,11 @@ void drawScene( VkCommandBuffer commandBuffer, uint32_t currentFrame ) {
 		drawModel( commandBuffer, currentFrame, obj, glm::mat4( 1 ), true );
 }
 
+#ifdef ACTIVATE_IMGUI
 void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, ImDrawData* draw_data ) {
+#else
+void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame ) {
+#endif
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // Optional
@@ -229,11 +242,13 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = scene.renderPass;
-	if( scene.DRAW_RASTERIZE )
+	if( scene.DRAW_RASTERIZE ) {
+		renderPassInfo.renderPass = scene.renderPass;
 		renderPassInfo.framebuffer = scene.rasterizerFramebuffers[currentFrame];
-	else
+	} else {
+		renderPassInfo.renderPass = scene.renderPassMotionVector,
 		renderPassInfo.framebuffer = scene.MotionVectorFramebuffers[currentFrame];
+	}
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width * UPSCALE_SCALE ), static_cast< uint32_t >( swapChainExtent.height * UPSCALE_SCALE ) };
 	renderPassInfo.clearValueCount = static_cast< uint32_t >( clearValues.size() );
@@ -259,22 +274,26 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	
 	if( !scene.DRAW_RASTERIZE || USE_FSR2) {
 		vkCmdEndRenderPass( commandBuffer ); // end rasterize command buffer
+		renderPassInfo.renderPass = scene.renderPass;
+		
+		if( !scene.DRAW_RASTERIZE )
+			// add the raytrace framebuffer for imgui drawing
+			renderPassInfo.framebuffer = scene.raytraceFramebuffers[currentFrame];
 
-		// add the raytrace framebuffer for imgui drawing
-		renderPassInfo.framebuffer = scene.raytraceFramebuffers[currentFrame];
 		if( USE_FSR2 ) {
 			// add the fsr2 framebuffer for imgui drawing
 			renderPassInfo.framebuffer = scene.fsr2Framebuffers[currentFrame];
 			renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ) };
 		}
-
-		vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
 	}
 
 	// draw raytrace
-	if( !scene.DRAW_RASTERIZE ) {
+	if( !scene.DRAW_RASTERIZE || USE_FSR2 ) {
+		vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
+
 		// raytrace
-		vulkanite_raytrace::buildCommandBuffers( commandBuffer, currentFrame );
+		if( !scene.DRAW_RASTERIZE )
+			vulkanite_raytrace::buildCommandBuffers( commandBuffer, currentFrame );
 
 		// dlss
 		if( USE_DLSS )
@@ -284,13 +303,15 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame, 
 	// FSR2
 	if( USE_FSR2 )
 		RenderFSR2( commandBuffer, currentFrame, 1.0 );
-
+		
+#ifdef ACTIVATE_IMGUI
 	// Imgui
 	// Record dear imgui primitives into command buffer
 	ImGui_ImplVulkan_RenderDrawData( draw_data, commandBuffer );
+#endif
+
 	vkCmdEndRenderPass( commandBuffer );
-
-
+	
 	// Copy final output to swap chain image
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
@@ -368,6 +389,7 @@ void destroyScene() {
 }
 
 void deleteModel() {
+return; // TODO, make it nice, but for now, let windows delete everything
 	std::function<void( objectVulkanite& )> f;
 
 	f = [=]( objectVulkanite& obj ) {

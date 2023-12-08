@@ -1,8 +1,10 @@
 #include "fsr2.h"
 
 #include "core_utils.h"
+#ifdef ACTIVATE_FSR2
 #include "ffx_fsr2.h"
 #include "vk/ffx_fsr2_vk.h"
+#endif
 
 #include <spdlog/spdlog.h>
 
@@ -11,10 +13,13 @@
 #include "scene.h"
 #include "texture.h"
 
+#ifdef ACTIVATE_FSR2
 FfxFsr2ContextDescription   initializationParameters = {};
 FfxFsr2Context              context;
+#endif
 
 bool initFSR2() {
+#ifdef ACTIVATE_FSR2
   //  UPSCALE_SCALE = 1.5f;
 
 	createStorageImage(scene.storageImagesFSR2, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, {swapChainExtent.width, swapChainExtent.height, 1});
@@ -27,11 +32,11 @@ bool initFSR2() {
    // FFX_ASSERT(errorCode == FFX_OK);
    
     initializationParameters.device = ffxGetDeviceVK(device);
-    initializationParameters.maxRenderSize.width = WIDTH;
-    initializationParameters.maxRenderSize.height = HEIGHT;
-    initializationParameters.displaySize.width = WIDTH;
-    initializationParameters.displaySize.height = HEIGHT;
-    initializationParameters.flags = FFX_FSR2_ENABLE_AUTO_EXPOSURE;
+    initializationParameters.maxRenderSize.width = swapChainExtent.width;
+    initializationParameters.maxRenderSize.height = swapChainExtent.height;
+    initializationParameters.displaySize.width = swapChainExtent.width;
+    initializationParameters.displaySize.height = swapChainExtent.height;
+    initializationParameters.flags = FFX_FSR2_ENABLE_DYNAMIC_RESOLUTION;
 
     //if (m_bInvertedDepth) {
     //    initializationParameters.flags |= FFX_FSR2_ENABLE_DEPTH_INVERTED | FFX_FSR2_ENABLE_DEPTH_INFINITE;
@@ -46,10 +51,14 @@ bool initFSR2() {
     ffxFsr2ContextCreate(&context, &initializationParameters);
 
 	return true;
+#else
+    return false;
+#endif
 }
 
 void RenderFSR2(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpness) {
 
+#ifdef ACTIVATE_FSR2
     float farPlane = scene.cameraNear;
     float nearPlane = scene.cameraFar;
 
@@ -100,7 +109,7 @@ void RenderFSR2(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
     dispatchParameters.enableSharpening = false; //pState->bUseRcas;
     dispatchParameters.sharpness = 0.f;//pState->sharpening;
     dispatchParameters.frameTimeDelta = (float)scene.deltaTime;
-    dispatchParameters.preExposure = 1.0f;
+    dispatchParameters.preExposure = 1.f;
     dispatchParameters.renderSize.width = static_cast< float >( swapChainExtent.width * UPSCALE_SCALE );
     dispatchParameters.renderSize.height = static_cast< float >( swapChainExtent.height * UPSCALE_SCALE );
     dispatchParameters.cameraFar = farPlane;
@@ -110,4 +119,5 @@ void RenderFSR2(VkCommandBuffer commandBuffer, uint32_t imageIndex, float sharpn
 
     FfxErrorCode errorCode = ffxFsr2ContextDispatch(&context, &dispatchParameters);
    // FFX_ASSERT(errorCode == FFX_OK);
+#endif
 }

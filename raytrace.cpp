@@ -460,7 +460,7 @@ void createDescriptorSets() {
 		accelerationStructureWrite.descriptorCount = 1;
 		accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, scene.storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_GENERAL};
+		VkDescriptorImageInfo storageImageDescriptor{VK_NULL_HANDLE, scene.storageImagesRaytrace[i].view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 		VkDescriptorBufferInfo vertexBufferDescriptor{scene.allVerticesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo indexBufferDescriptor{scene.allIndicesBuffer, 0, VK_WHOLE_SIZE};
 		VkDescriptorBufferInfo offsetPrimsBufferDescriptor{scene.offsetPrimsBuffer.buffer, 0, VK_WHOLE_SIZE};

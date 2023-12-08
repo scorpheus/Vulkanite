@@ -9,16 +9,21 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#ifdef ACTIVATE_IMGUI
 #include <imgui.h>
 #include <implot.h>
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#endif
 
 #include "core_utils.h"
 #include "imgui_widget.h"
 #include "scene.h"
 
+extern float camSpeed;
+
 void ShowFPS() {
+#ifdef ACTIVATE_IMGUI
     static std::deque<float> fpsValues;
     static float minFPS = FLT_MAX, maxFPS = FLT_MIN;
     static auto t1 = std::chrono::high_resolution_clock::now();
@@ -57,7 +62,13 @@ void ShowFPS() {
 
     ImGui::Columns(1);
 
-    ImGui::Checkbox("Rasterizer", &scene.DRAW_RASTERIZE);
+    ImGui::Checkbox("Rasterizer", &scene.DRAW_RASTERIZE);    
+#ifdef ACTIVATE_FSR2
     ImGui::Checkbox("FSR2", &USE_FSR2);
+#endif
     ImGui::SliderFloat("Scale", &UPSCALE_SCALE, 0.5f, 1.0f);
+
+    
+    ImGui::SliderFloat("camSpeed", &camSpeed, 0.1f, 10.0f);
+#endif
 }

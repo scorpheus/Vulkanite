@@ -1,6 +1,8 @@
 #include "camera.h"
 
+#ifdef ACTIVATE_IMGUI
 #include <imgui.h>
+#endif
 #include <GLFW/glfw3.h>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -8,7 +10,7 @@
 //glm::mat4 camWorld(glm::lookAt(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
 glm::mat4 camWorld(1);
 glm::vec2 jitterCam(0);
-static float camSpeed(0.1f), camRotSpeed(0.5f);
+float camSpeed(0.1f), camRotSpeed(0.5f);
 float pitch(0.376), yaw(-2.2), roll(0.f);
 glm::vec3 translation(-0.656056166, -0.294942170, 0.433864325);
 double xMousePos, yMousePos;
@@ -48,8 +50,10 @@ void updateJitter(glm::vec2 &jitterCam, uint32_t frameIndex) {
 }
 
 void updateCamera(GLFWwindow *window, float deltaTime) {
+#ifdef ACTIVATE_IMGUI
 	if(ImGui::GetIO().WantCaptureMouse)
 		return;
+#endif
 
 	const glm::mat4 inverted = glm::inverse(camWorld);
 	const glm::vec3 forward = normalize(glm::vec3(inverted[2]));
