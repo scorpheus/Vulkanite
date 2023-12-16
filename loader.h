@@ -95,4 +95,6 @@ struct objectVulkanite {
 };
 
 std::vector<objectVulkanite> loadSceneGLTF(const std::string &scenePath);
+#ifdef ACTIVATE_USD
 std::vector<objectVulkanite> loadSceneUSD(const std::string &scenePath);
+#endif

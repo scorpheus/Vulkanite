@@ -1,3 +1,5 @@
+#ifdef ACTIVATE_USD
+
 #include "materialx.h"
 
 #define MATERIALX_BUILD_SHARED_LIBS
@@ -284,3 +286,4 @@ void AssignMaterialToGeo(){
 //    }
 //    return nullptr;
 //}
+#endif

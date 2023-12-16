@@ -13,6 +13,9 @@ namespace fs = std::filesystem;
 
 #include <spdlog/spdlog.h>
 
+bool isDepth( const VkFormat& format ) {
+	return ( format == VK_FORMAT_D16_UNORM || format == VK_FORMAT_D32_SFLOAT || format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT );
+}
 
 bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
 	// Check if image format supports linear blitting
@@ -235,9 +238,9 @@ void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat forma
 
 		VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
 		image.imageType = VK_IMAGE_TYPE_2D;
-		image.format = format;
+		image.format = storageImages[i].format = format;
 		image.extent = extent;
-		image.mipLevels = 1;
+		image.mipLevels = storageImages[i].mipLevels = 1;
 		image.arrayLayers = 1;
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;

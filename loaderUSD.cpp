@@ -1,6 +1,7 @@
 /*
  *  Copyright Vulkanite - 2022  - Thomas Simonnet
  */
+#ifdef ACTIVATE_USD
 
 #define NOMINMAX
 
@@ -1103,3 +1104,4 @@ std::vector<objectVulkanite> loadSceneUSD( const std::string& path ) {
 	nodesHierarchy.push_back( std::move( root ) );
 	return nodesHierarchy;
 }
+#endif

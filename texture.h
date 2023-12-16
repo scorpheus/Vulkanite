@@ -10,6 +10,7 @@ struct StorageImage {
 	VkImage image = VK_NULL_HANDLE;
 	VkImageView view = VK_NULL_HANDLE;
 	VkFormat format;
+    uint32_t mipLevels;
 };
 
 bool generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
@@ -25,6 +26,8 @@ void createTextureImage(void *pixels,
                         VkFormat format);
 VkImageView createTextureImageView(const VkImage textureImage, const uint32_t mipLevels, VkFormat format);
 bool createTextureSampler(VkSampler &textureSampler, const uint32_t mipLevels);
+
+bool isDepth( const VkFormat& format );
 
 void createStorageImage(std::vector<StorageImage> &storageImages, VkFormat format, VkImageAspectFlags aspect, VkExtent3D extent);
 void deleteStorageImage(std::vector<StorageImage> &storageImages);

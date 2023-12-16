@@ -41,28 +41,30 @@ void loadScene() {
 	//	scene.roots = loadSceneUSD(MODEL_GLTF_PATH);
 
 	
-	//std::string scenePath("models/abeautifulgame_draco.glb");
-	std::string scenePath("models/BoxTextured.glb");
+	std::string scenePath("models/abeautifulgame_draco.glb");
+	//std::string scenePath("models/BoxTextured.glb");
 	
 //	std::string scenePath("models/simple_texture_cube.usda");
 //	std::string scenePath("models/pion_chess.usda");
 //	std::string scenePath( "models/RockyLevel.usdc" );
 	//std::string scenePath("models/2_tower.usda");
 
-//	std::string scenePath("models/Ship_in_a_bottle.usdz");
+	//std::string scenePath("models/Ship_in_a_bottle.usdz");
 //	std::string scenePath("models/transprent_cube.usda");
 
 //	std::string scenePath("F:\\Movida\\works\\Harfang\\factory\\TechArt.usda");
 
 	if( fs::path( scenePath ).extension() == ".gltf" || fs::path( scenePath ).extension() == ".glb" )
 		scene.roots = loadSceneGLTF( scenePath );
+#ifdef ACTIVATE_USD
 	else
 		scene.roots = loadSceneUSD( scenePath );
+#endif
 }
 
 void initScene() {
-	scene.DRAW_RASTERIZE = true;
-	scene.cameraNear = 0.001f; scene.cameraFar = 10000.f; scene.cameraFov = glm::radians( 45.0f ); scene.deltaTime = 0.0;
+	scene.DRAW_RASTERIZE = false;
+	scene.cameraNear = 0.1f; scene.cameraFar = 10000.f; scene.cameraFov = glm::radians( 45.0f ); scene.deltaTime = 0.0;
 
 	// dlss
 	USE_DLSS = initDLSS();
@@ -160,13 +162,13 @@ void updateScene( float deltaTime ) {
 
 	// update the 5th object around (moving test for the chess game)
 	if( scene.roots.size() ) {
-		if( 5 < scene.roots[0].children.size() ) {
+		if( 5 < scene.roots.size() ) {
 			glm::mat4 movingMat = glm::mat4( 1.0f );
-			scene.roots[0].children[5].world = glm::translate( movingMat, glm::vec3( cos( glm::radians( timer ) ) * 0.1f, sin( glm::radians( timer ) ) * 0.1f, 0.014927f ) );
+			scene.roots[5].world = glm::translate( movingMat, glm::vec3( cos( glm::radians( timer ) ) * 0.1f, 0.014927f, sin( glm::radians( timer ) ) * 0.1f ) );
 
 			if( !scene.DRAW_RASTERIZE ) {
-				for( auto& o : scene.roots[0].children[5].children )
-					updateTLASf( o, scene.roots[0].world * scene.roots[0].children[5].world );
+				for( auto& o : scene.roots[5].children )
+					updateTLASf( o, scene.roots[5].world );
 			}
 		}
 	}
@@ -286,7 +288,6 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame )
 			renderPassInfo.renderArea.extent = { static_cast< uint32_t >( swapChainExtent.width ), static_cast< uint32_t >( swapChainExtent.height ) };
 		}
 	}
-
 	// draw raytrace
 	if( !scene.DRAW_RASTERIZE || USE_FSR2 ) {
 		vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
@@ -295,15 +296,16 @@ void recordCommandBuffer( VkCommandBuffer commandBuffer, uint32_t currentFrame )
 		if( !scene.DRAW_RASTERIZE )
 			vulkanite_raytrace::buildCommandBuffers( commandBuffer, currentFrame );
 
-		// dlss
-		if( USE_DLSS )
-			RenderDLSS( commandBuffer, currentFrame, 1.0 );
-	}
 
 	// FSR2
 	if( USE_FSR2 )
 		RenderFSR2( commandBuffer, currentFrame, 1.0 );
 		
+		// dlss
+		if( USE_DLSS )
+			RenderDLSS( commandBuffer, currentFrame, 1.0 );
+	}
+
 #ifdef ACTIVATE_IMGUI
 	// Imgui
 	// Record dear imgui primitives into command buffer

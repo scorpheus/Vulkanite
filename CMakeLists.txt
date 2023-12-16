@@ -21,6 +21,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR})
 
 option(ACTIVATE_FSR2 "FSR2" ON)
 option(ACTIVATE_IMGUI "IMGUI" ON)
+option(ACTIVATE_USD "USD" ON)
 
 # conan
 include(conan.cmake)
@@ -104,7 +105,6 @@ file(GLOB SOURCE_FILES "*.h" "*.cpp")
 if(ACTIVATE_IMGUI)
 LIST(APPEND SOURCE_FILES extern/imgui/imgui_impl_glfw.cpp extern/imgui/imgui_impl_vulkan.cpp)
 endif()
-LIST(APPEND SOURCE_FILES extern/FSR2/ffx_fsr2.h)
 
 # create Vulkanite project
 add_executable(Vulkanite ${SOURCE_FILES} ${SHADERS_FILES} ${GLSL_SOURCES} ${GLSL_HEADERS})
@@ -130,6 +130,8 @@ if(WIN32)
 endif()
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! USD
+if(ACTIVATE_USD)
+target_compile_definitions(Vulkanite PUBLIC ACTIVATE_USD=1)
 set(USD_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/OpenUSD" CACHE PATH "Path to the USD build directory")
 
 if (WIN32)
@@ -198,7 +200,7 @@ add_custom_target(usd_copy ALL
 	DEPENDS Vulkanite
 )
 set_target_properties(usd_copy PROPERTIES FOLDER "CMakePredefinedTargets")
-
+endif()
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Ressources include in exe
 option(INCLUDE_MODEL "Mettre le model 3D dans l'exe" OFF)
@@ -208,8 +210,8 @@ include(cmake/CMakeRC.cmake)
 set(ENVMAP textures/limpopo_golf_course_1k.hdr)
 #set(MODEL_GLTF_PATH models/abeautifulgame_ktx.glb)
 
-#set(MODEL_GLTF_PATH models/simple_texture_plane.usda)
-set(MODEL_GLTF_PATH models/simple_texture_cube.usda)
+set(MODEL_GLTF_PATH models/simple_texture_plane.usda)
+#set(MODEL_GLTF_PATH models/simple_texture_cube.usda)
 #set(MODEL_GLTF_PATH models/Attic_NVIDIA/Attic_NVIDIA.usd)
 
 #set(MODEL_GLTF_PATH models/BoxTextured.glb)
@@ -256,7 +258,13 @@ set_target_properties(Vulkanite PROPERTIES LINK_FLAGS_RELEASE "/DEBUG")
 # FSR2
 if(ACTIVATE_FSR2)
 	target_link_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
-	target_link_libraries(Vulkanite PUBLIC ffx_fsr2_api_vk_x64 ffx_fsr2_api_x64)
+	target_link_libraries(Vulkanite PUBLIC 
+		"$<$<CONFIG:Debug>:ffx_backend_vk_x64d>"
+		"$<$<NOT:$<CONFIG:Debug>>:ffx_backend_vk_x64>"
+		"$<$<CONFIG:Debug>:ffx_fsr2_x64d>"
+		"$<$<NOT:$<CONFIG:Debug>>:ffx_fsr2_x64>"
+		)
+
 	target_include_directories(Vulkanite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/FSR2)
 	target_compile_definitions(Vulkanite PUBLIC ACTIVATE_FSR2=1)
 endif()

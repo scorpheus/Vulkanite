@@ -810,7 +810,7 @@ private:
 		}
 	}
 #endif
-#pragma optimize("", off)
+
 	void drawFrame() {
 		currentTimeFrame = glfwGetTime();
 		scene.deltaTime = currentTimeFrame - lastTimeFrame;

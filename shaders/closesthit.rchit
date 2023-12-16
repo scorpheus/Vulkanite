@@ -79,7 +79,7 @@ layout(binding = 8, set = 0) uniform sampler2D envMap;
 
 
 // Max. number of recursion is passed via a specialization constant
-layout (constant_id = 0) const int MAX_RECURSION = 3;
+layout (constant_id = 0) const int MAX_RECURSION = 4;
 
 #define specular_level 0.5
 #define occlusion_intensity 1.0
